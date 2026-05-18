@@ -1,0 +1,34 @@
+# Python / Backend
+backend/__pycache__/
+backend/venv/
+backend/.venv/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# Downloaded Models
+backend/*.pt
+backend/yolov8*-world.pt
+
+# Temporary Data
+backend/temp_frames/
+backend/data/
+data/
+*.mp4
+*.jpg
+*.jpeg
+*.png
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
