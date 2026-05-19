@@ -77,6 +77,20 @@ def _load_clip():
     return _clip_model, _clip_processor
 
 
+def _clip_image_features(clip_model, inputs: dict) -> torch.Tensor:
+    """Return image embeddings across transformers versions/model variants."""
+    outputs = clip_model.get_image_features(**inputs)
+    if isinstance(outputs, torch.Tensor):
+        return outputs
+    if hasattr(outputs, "image_embeds") and outputs.image_embeds is not None:
+        return outputs.image_embeds
+    if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
+        return outputs.pooler_output
+    if hasattr(outputs, "last_hidden_state") and outputs.last_hidden_state is not None:
+        return outputs.last_hidden_state[:, 0, :]
+    raise TypeError("Unsupported CLIP image output type for embeddings.")
+
+
 def _load_blip():
     global _blip_processor, _blip_model
     if _blip_model is None:
@@ -92,18 +106,32 @@ def _load_blip():
     return _blip_processor, _blip_model
 
 
+def _resolve_yolo_weights() -> list[Path]:
+    weights_dir = Path(__file__).resolve().parent
+    candidates = [
+        "yolov8m-worldv2.pt",
+        "yolov8s-worldv2.pt",
+        "yolov8s-world.pt",
+    ]
+    return [weights_dir / name for name in candidates if (weights_dir / name).exists()]
+
+
 def _load_yolo():
     global _yolo_model
     if _yolo_model is None:
         from ultralytics import YOLOWorld
-        print("[BrandDetector] Loading YOLO-World v2 (medium)...")
-        # yolov8m-worldv2.pt is the best accuracy/speed tradeoff
-        try:
+        # Prefer local weights in the backend folder to avoid CWD issues.
+        local_weights = _resolve_yolo_weights()
+        if local_weights:
+            weight_path = local_weights[0]
+            print(f"[BrandDetector] Loading YOLO-World weights: {weight_path.name}...")
+            _yolo_model = YOLOWorld(str(weight_path))
+            print("[BrandDetector] YOLO-World weights loaded.")
+        else:
+            print("[BrandDetector] Local YOLO-World weights not found; attempting download...")
+            # yolov8m-worldv2.pt is the best accuracy/speed tradeoff
             _yolo_model = YOLOWorld("yolov8m-worldv2.pt")
-            print("[BrandDetector] YOLO-World v2 medium loaded.")
-        except Exception:
-            _yolo_model = YOLOWorld("yolov8s-worldv2.pt")
-            print("[BrandDetector] YOLO-World v2 small loaded.")
+            print("[BrandDetector] YOLO-World weights downloaded and loaded.")
     return _yolo_model
 
 
@@ -220,7 +248,7 @@ def build_reference_embeddings(reference_path: str | Path) -> list[torch.Tensor]
             img = Image.open(img_path).convert("RGB")
             inputs = clip_processor(images=img, return_tensors="pt").to(device)
             with torch.no_grad():
-                feat = clip_model.get_image_features(**inputs)
+                feat = _clip_image_features(clip_model, inputs)
                 feat = feat / feat.norm(dim=-1, keepdim=True)
                 embeddings.append(feat.cpu())
             print(f"[BrandDetector] Reference embedded: {img_path.name}")
@@ -240,12 +268,12 @@ def _layer_clip_image(
     reference_embeddings: list[torch.Tensor],
 ) -> LayerResult:
     if not reference_embeddings:
-        return LayerResult(score=0.0, fired=False, evidence="No reference images provided.", weight=1.5)
+        return LayerResult(score=0.0, fired=False, evidence="No reference images provided.", weight=4.0)
 
     clip_model, clip_processor = _load_clip()
     inputs = clip_processor(images=image, return_tensors="pt").to(device)
     with torch.no_grad():
-        target_feat = clip_model.get_image_features(**inputs)
+        target_feat = _clip_image_features(clip_model, inputs)
         target_feat = target_feat / target_feat.norm(dim=-1, keepdim=True)
         target_feat = target_feat.cpu()
 
@@ -260,7 +288,7 @@ def _layer_clip_image(
     # Threshold: >0.80 is a strong match for visual brand reference
     fired = best_sim > 0.80
     evidence = f"Best reference similarity: {best_sim:.3f} ({len(reference_embeddings)} refs)"
-    return LayerResult(score=best_sim, fired=fired, evidence=evidence, weight=1.5)
+    return LayerResult(score=best_sim, fired=fired, evidence=evidence, weight=4.0)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -372,7 +400,7 @@ def _layer_blip_caption(
 
     fired = bool(matched)
     evidence = f"Caption: '{caption}' | Matched: {matched}"
-    return LayerResult(score=score, fired=fired, evidence=evidence, weight=1.2), caption, matched
+    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.6), caption, matched
 
 
 # ──────────────────────────────────────────────────────────────
@@ -413,7 +441,7 @@ def _layer_yolo(
     except Exception as e:
         return LayerResult(
             score=0.0, fired=False,
-            evidence=f"YOLO error: {e}", weight=1.3,
+            evidence=f"YOLO error: {e}", weight=0.7,
         ), []
 
     detected_classes = []
@@ -438,7 +466,7 @@ def _layer_yolo(
         fired = False
         evidence = "No brand objects detected."
 
-    layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=1.3)
+    layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=0.7)
     return layer, [c[0] for c in detected_classes]
 
 
@@ -476,7 +504,7 @@ def _layer_ocr(
         ocr_results = reader.readtext(img_array, detail=1, paragraph=False)
     except Exception as e:
         return LayerResult(
-            score=0.0, fired=False, evidence=f"OCR error: {e}", weight=1.4
+            score=0.0, fired=False, evidence=f"OCR error: {e}", weight=0.7
         ), ""
 
     all_text = " ".join(item[1] for item in ocr_results)
@@ -505,7 +533,7 @@ def _layer_ocr(
         fired = False
 
     evidence = f"OCR text: '{all_text[:200]}' | Matched: {matched}"
-    layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=1.4)
+    layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=0.7)
     return layer, all_text, matched
 
 
@@ -538,13 +566,13 @@ def _layer_color(
     brand_palette_hex: list[str],
 ) -> LayerResult:
     if not brand_palette_hex:
-        return LayerResult(score=0.0, fired=False, evidence="No brand palette defined.", weight=0.4)
+        return LayerResult(score=0.0, fired=False, evidence="No brand palette defined.", weight=0.3)
 
     try:
         brand_colors = [_hex_to_rgb(h) for h in brand_palette_hex]
         dom_colors = _dominant_colors(image)
         if not dom_colors:
-            return LayerResult(score=0.0, fired=False, evidence="Could not extract colors.", weight=0.4)
+            return LayerResult(score=0.0, fired=False, evidence="Could not extract colors.", weight=0.3)
 
         # Best match: min distance between any dominant ↔ any brand color
         min_dist = min(
@@ -557,9 +585,9 @@ def _layer_color(
         fired = score > 0.70
         evidence = f"Color match score: {score:.3f} (min dist={min_dist:.1f})"
     except Exception as e:
-        return LayerResult(score=0.0, fired=False, evidence=f"Color error: {e}", weight=0.4)
+        return LayerResult(score=0.0, fired=False, evidence=f"Color error: {e}", weight=0.3)
 
-    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.4)
+    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.3)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -601,17 +629,27 @@ def _determine_verdict(
     - YOLO detected brand     → always at least Uncertain
     - Both OCR + YOLO fired   → Relevant (strong physical evidence)
     """
-    # Hard signal overrides
-    hard_signals = sum([
-        result.ocr_text.fired,
-        result.yolo_detection.fired,
-        result.clip_image_similarity.fired,
-    ])
+    # Hard/soft signal overrides to reduce false negatives.
+    hard_signals = {
+        "ocr": result.ocr_text.fired,
+        "yolo": result.yolo_detection.fired,
+        "clip_image": result.clip_image_similarity.fired,
+    }
+    soft_signals = {
+        "clip_text": result.clip_text_score.fired,
+        "blip": result.blip_caption.fired,
+    }
+    hard_count = sum(hard_signals.values())
+    soft_count = sum(soft_signals.values())
 
-    if hard_signals >= 2:
-        # Two or more hard signals → Relevant regardless of ensemble score
-        confidence = max(ensemble_score, 0.78)
-    elif hard_signals == 1:
+    if result.clip_image_similarity.fired and result.clip_image_similarity.score >= 0.85:
+        # Very strong visual match to reference images.
+        confidence = max(ensemble_score, 0.75)
+    elif hard_count >= 2 or (hard_count >= 1 and soft_count >= 1) or soft_count >= 2:
+        # Multiple agreeing signals.
+        confidence = max(ensemble_score, 0.70)
+    elif hard_count == 1 or soft_count == 1:
+        # Single signal suggests at least Uncertain.
         confidence = max(ensemble_score, 0.55)
     else:
         confidence = ensemble_score
@@ -698,7 +736,7 @@ def detect_brand(
             result.yolo_classes_found = yolo_classes
         else:
             result.yolo_detection = LayerResult(
-                score=0.0, fired=False, evidence="YOLO disabled.", weight=1.3
+                score=0.0, fired=False, evidence="YOLO disabled.", weight=0.7
             )
 
         # ── Layer 5: OCR ────────────────────────────────────────
@@ -711,7 +749,7 @@ def detect_brand(
             result.matched_terms = list(set(result.matched_terms + ocr_matched))
         else:
             result.ocr_text = LayerResult(
-                score=0.0, fired=False, evidence="OCR disabled.", weight=1.4
+                score=0.0, fired=False, evidence="OCR disabled.", weight=0.7
             )
 
         # ── Layer 6: Color fingerprint ──────────────────────────
@@ -719,7 +757,7 @@ def detect_brand(
             result.color_fingerprint = _layer_color(image, brand_palette_hex)
         else:
             result.color_fingerprint = LayerResult(
-                score=0.0, fired=False, evidence="Color check disabled/no palette.", weight=0.4
+                score=0.0, fired=False, evidence="Color check disabled/no palette.", weight=0.3
             )
 
         # ── Ensemble + verdict ──────────────────────────────────

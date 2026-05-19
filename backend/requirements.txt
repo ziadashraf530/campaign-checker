@@ -7,3 +7,5 @@ transformers
 pillow
 opencv-python
 python-multipart
+easyocr
+ultralytics>=8.1.0

@@ -73,7 +73,14 @@ def run_analysis(req: AnalysisRequest):
             continue
 
         # Format the output label to match the frontend expectations
-        debug_str = f" (Score: {r.confidence_raw:.2f}, Caption: {r.blip_caption.fired}, YOLO: {r.yolo_detection.fired}, OCR: {r.ocr_text.fired})"
+        debug_str = (
+            f" (Score: {r.confidence_raw:.2f}, "
+            f"ClipImg: {r.clip_image_similarity.fired}, "
+            f"ClipTxt: {r.clip_text_score.fired}, "
+            f"Caption: {r.blip_caption.fired}, "
+            f"YOLO: {r.yolo_detection.fired}, "
+            f"OCR: {r.ocr_text.fired})"
+        )
         label = r.verdict + debug_str
 
         results.append({
