@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from ai_engine import analyze_image, classify, get_reference_embeddings
+from ai_engine import detect_brand, detect_brand_from_frames, build_reference_embeddings
 from video_utils import extract_frames
 from file_scanner import scan_data_folder
 
@@ -48,7 +48,7 @@ def run_analysis(req: AnalysisRequest):
 
     reference_embeddings = []
     if reference_path:
-        reference_embeddings = get_reference_embeddings(reference_path)
+        reference_embeddings = build_reference_embeddings(reference_path)
 
     results = []
 
@@ -56,20 +56,25 @@ def run_analysis(req: AnalysisRequest):
         path = post["path"]
         ext = path.split(".")[-1].lower()
 
-        analysis_results = []
-
-        if ext in ["jpg", "png"]:
-            analysis_results.append(analyze_image(path, brand_name, reference_embeddings))
-
+        if ext in ["jpg", "png", "jpeg", "webp"]:
+            r = detect_brand(
+                image_source=path,
+                brand_name=brand_name,
+                reference_embeddings=reference_embeddings
+            )
         elif ext == "mp4":
             frames = extract_frames(path)
-            for f in frames[:5]:
-                analysis_results.append(analyze_image(f, brand_name, reference_embeddings))
-
-        if not analysis_results:
+            r = detect_brand_from_frames(
+                frames=frames,
+                brand_name=brand_name,
+                reference_embeddings=reference_embeddings
+            )
+        else:
             continue
 
-        label = classify(analysis_results)
+        # Format the output label to match the frontend expectations
+        debug_str = f" (Score: {r.confidence_raw:.2f}, Caption: {r.blip_caption.fired}, YOLO: {r.yolo_detection.fired}, OCR: {r.ocr_text.fired})"
+        label = r.verdict + debug_str
 
         results.append({
             "influencer": post["influencer"],
