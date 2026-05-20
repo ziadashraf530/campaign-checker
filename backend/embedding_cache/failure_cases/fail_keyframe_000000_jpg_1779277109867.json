@@ -1,0 +1,14 @@
+{
+  "timestamp": 1779277109867,
+  "filename": "keyframe_000000.jpg",
+  "similarity_score": 0.5548,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Irrelevant",
+  "threshold_used": 0.72,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "TEMPORAL INSTABILITY: Detected a high-scoring transient frame (0.804), but the match is not sustained over time (temporal strength: 0.555). This is indicative of an isolated false-positive spike."
+  ]
+}

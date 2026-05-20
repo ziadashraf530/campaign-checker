@@ -16,14 +16,29 @@ This document acts as a persistent repository-level memory, preserving critical 
 
 ---
 
-## 2. Dynamic Threshold Constraints
+## 2. Score Blending & Calibration Adjustments
+
+- **Rebalanced Score Fusion Math**: Fused similarity scores are calculated via:
+  $$Score = 0.50 \cdot Max + 0.30 \cdot Centroid_{cluster} + 0.20 \cdot AvgK_{cluster}$$
+  incorporating both global layout similarity and dynamic cluster centroid alignment.
+- **Calibration Boosts & Platt Limits**: Boost adjustments are additive and strictly capped at a maximum calibrated probability of `0.98` to prevent artificial confidence inflation.
+  - **Social UI Adjustment**: Up to `+0.05` bonus applied to vertical aspect ratios (e.g. mobile screenshots) displaying verified overlay elements matching relevant visual clusters.
+  - **Branding Product Boost**: Up to `+0.03` bonus applied when candidate matches align with specific high-density product reference clusters.
+- **Match Verdict Aggregation**: In the main API and dashboard summaries:
+  - `STRONG_MATCH` maps to "Strong Matches".
+  - `PROBABLE_STRONG_MATCH`, `PROBABLE_MATCH`, and `POSSIBLE_MATCH` map to "Possible Matches".
+  - `NO_MATCH` maps to "Rejected".
+
+---
+
+## 3. Dynamic Threshold Constraints
 
 - **Intra-Set Variance**: Campaigns built from highly uniform reference sets (e.g., repeating logo shots) produce an exceptionally narrow variance. Thresholds are automatically calibrated stricter to block competitors with similar color themes.
 - **Intra-Set Diversity**: Campaigns with highly diverse visuals (e.g. scene layouts, lifestyle branding) produce a higher variance. Thresholds are automatically adjusted slightly lower to accommodate broad design matches.
 
 ---
 
-## 3. Advanced Robustness Invariants
+## 4. Advanced Robustness Invariants
 
 - **Competitor Suppression Margin**: Cosine margins (positive campaign similarity vs. closest competitor logo/brand similarity) must have a default separation boundary of `0.12`. Any encroachment under this boundary triggers penalization.
 - **Bartlett Smoothing Kernel**: Video temporal analysis must apply a rolling window Bartlett smoothing filter (width = 5) to eliminate brief frame anomalies, noise, and transient logo overlaps.
@@ -31,7 +46,7 @@ This document acts as a persistent repository-level memory, preserving critical 
 
 ---
 
-## 4. Dependency Requirements
+## 5. Dependency Requirements
 
 - **SentencePiece**: HuggingFace's SigLIP processor uses the `SiglipTokenizer` which depends directly on the `sentencepiece` and `protobuf` libraries. These must always be present in any environment deploying the engine.
 - **PyTorch**: Local model inference relies on PyTorch (`torch` and `torchvision`). Auto-sensing will direct tasks to `cuda` if an NVIDIA GPU is active, falling back safely to `cpu`.

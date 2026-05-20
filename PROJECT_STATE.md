@@ -45,4 +45,5 @@ This document records the exact state of development, milestones completed, acti
    - **Precision**: `1.0000` (100% competitor distractor suppression).
    - **Recall**: `0.8333` (exceeding production baseline of `0.80`).
    - **Verdict**: System meets and surpasses production readiness criteria.
-2. **Interactive UI Verification**: Verified side-by-side details, gauges, decision ambiguity indexes, diagnostics logs, and SVG temporal timeline charts.
+2. **Interactive UI Verification**: Verified side-by-side details, gauges, decision ambiguity indexes, diagnostics logs, SVG temporal timeline charts, and the new **Semantic Cluster & Adjustments** calibration dashboard.
+3. **Platt Scaling & Social Boost Calibration**: Integrated Platt confidence calibration curves, social layout aspect adjustments (+0.05 max), and product branding boosts (+0.03 max) capped at 0.98 probability. All validated by automated tests and client metrics.

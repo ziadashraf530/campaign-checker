@@ -60,11 +60,11 @@ class TemporalConsistencyEngine:
     def suppress_spikes(
         self,
         scores: list[float] | np.ndarray,
-        margin: float = 0.20
+        margin: float = 0.18
     ) -> np.ndarray:
         """
-        Suppresses isolated single-frame visual spikes that represent brief false alarms.
-        If a frame score is significantly higher than both neighbors, it is suppressed.
+        Suppresses isolated single-frame visual spikes that represent brief false alarms (e.g. flashes, brief brand overlap).
+        If a frame score is significantly higher than both neighbors, it is heavily suppressed.
         """
         scores = np.array(scores, dtype=float)
         if len(scores) < 3:
@@ -77,9 +77,16 @@ class TemporalConsistencyEngine:
 
             # If the current score spikes high compared to both immediate neighbors
             if left_diff > margin and right_diff > margin:
-                # Suppress to the average of neighbors plus a small residual
+                # Suppress to the average of neighbors (prunes isolated flashes)
                 neighbor_avg = (scores[i - 1] + scores[i + 1]) / 2.0
-                suppressed[i] = neighbor_avg + 0.10 * (scores[i] - neighbor_avg)
+                suppressed[i] = neighbor_avg + 0.05 * (scores[i] - neighbor_avg)
+
+        # Handle boundaries (edges) if they spike heavily compared to their sole neighbor
+        if len(scores) >= 3:
+            if scores[0] - scores[1] > margin * 1.5:
+                suppressed[0] = scores[1] + 0.05 * (scores[0] - scores[1])
+            if scores[-1] - scores[-2] > margin * 1.5:
+                suppressed[-1] = scores[-2] + 0.05 * (scores[-1] - scores[-2])
 
         return suppressed
 
@@ -128,13 +135,62 @@ class TemporalConsistencyEngine:
             "frame_continuity_score": round(float(frame_continuity_score), 4),
         }
 
+    def find_stable_segments(self, scores: list[float] | np.ndarray) -> list[dict]:
+        """
+        Identify consecutive index ranges where matching scores are sustained
+        above the target threshold, indicating continuous product visual presence.
+        
+        Returns:
+            List of dicts representing matching segments.
+        """
+        scores = np.array(scores, dtype=float)
+        n = len(scores)
+        segments = []
+        
+        if n == 0:
+            return segments
+            
+        in_segment = False
+        start_idx = -1
+        
+        for idx in range(n):
+            is_match = scores[idx] >= self.match_threshold
+            
+            if is_match and not in_segment:
+                in_segment = True
+                start_idx = idx
+            elif not is_match and in_segment:
+                in_segment = False
+                end_idx = idx - 1
+                avg_score = float(np.mean(scores[start_idx:end_idx + 1]))
+                segments.append({
+                    "start_frame": start_idx,
+                    "end_frame": end_idx,
+                    "duration_frames": end_idx - start_idx + 1,
+                    "average_score": round(avg_score, 4)
+                })
+                
+        # Handle trailing segment
+        if in_segment:
+            end_idx = n - 1
+            avg_score = float(np.mean(scores[start_idx:end_idx + 1]))
+            segments.append({
+                "start_frame": start_idx,
+                "end_frame": end_idx,
+                "duration_frames": end_idx - start_idx + 1,
+                "average_score": round(avg_score, 4)
+            })
+            
+        return segments
+
     def process_sequence(self, raw_scores: list[float]) -> dict:
         """
         Full temporal pipeline:
         1. Spike suppression
         2. Rolling smoothing
         3. Continuity evaluation
-        4. Temporal strength calculation
+        4. Stable segment extraction
+        5. Temporal strength calculation
         """
         if not raw_scores:
             return {
@@ -144,6 +200,7 @@ class TemporalConsistencyEngine:
                 "frame_continuity_score": 0.0,
                 "longest_streak": 0,
                 "streak_ratio": 0.0,
+                "stable_segments": [],
             }
 
         raw = np.array(raw_scores, dtype=float)
@@ -156,8 +213,11 @@ class TemporalConsistencyEngine:
 
         # 3. Calculate sequence continuity stats
         continuity = self.calculate_continuity(smoothed)
+        
+        # 4. Extract stable segments
+        stable_segs = self.find_stable_segments(smoothed)
 
-        # 4. Temporal Strength
+        # 5. Temporal Strength
         # Combines the mean of the top 3 smoothed frame scores with continuity weight
         sorted_smoothed = np.sort(smoothed)[::-1]
         top_k_frames = max(1, min(3, len(sorted_smoothed)))
@@ -175,4 +235,5 @@ class TemporalConsistencyEngine:
             "frame_continuity_score": continuity["frame_continuity_score"],
             "longest_streak": continuity["longest_streak"],
             "streak_ratio": continuity["streak_ratio"],
+            "stable_segments": stable_segs,
         }

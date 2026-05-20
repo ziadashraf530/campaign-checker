@@ -23,6 +23,8 @@
   /* Verdict Colors */
   --match-strong: hsl(145, 80%, 45%);
   --match-strong-glow: hsla(145, 80%, 45%, 0.25);
+  --match-probable: hsl(47, 95%, 55%);
+  --match-probable-glow: hsla(47, 95%, 55%, 0.25);
   --match-possible: hsl(38, 90%, 55%);
   --match-possible-glow: hsla(38, 90%, 55%, 0.25);
   --match-none: hsl(355, 75%, 55%);
@@ -1180,4 +1182,317 @@ header {
 .legend-dot.thresh {
   border: 1.5px dashed var(--match-possible);
   background-color: transparent;
+}
+
+/* ==========================================================================
+   PROBABLE STRONG MATCH & NEW DASHBOARD COMPONENT STYLING
+   ========================================================================== */
+
+/* Result Card left border */
+.result-card.PROBABLE_STRONG_MATCH {
+  border-left: 4px solid var(--match-probable);
+}
+
+/* Badge classes */
+.badge.probable {
+  background-color: hsla(47, 95%, 55%, 0.12);
+  border: 1px solid var(--match-probable);
+  color: var(--match-probable);
+}
+
+/* Gauge styling */
+.gauge-pct.probable {
+  color: var(--match-probable);
+}
+.gauge-fill.probable {
+  background: linear-gradient(90deg, hsl(47, 85%, 45%), var(--match-probable));
+  box-shadow: 0 0 6px var(--match-probable-glow);
+}
+
+/* Media context pills */
+.media-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.media-badge.highlight {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  background-color: hsla(260, 85%, 65%, 0.05);
+}
+
+.media-badge.warning {
+  border-color: var(--match-possible);
+  color: var(--match-possible);
+  background-color: hsla(38, 90%, 55%, 0.05);
+}
+
+/* Calibration cards */
+.calibration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 1rem;
+}
+
+.calibration-card {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+  transition: border-color var(--transition-fast);
+}
+
+.calibration-card:hover {
+  border-color: var(--accent-muted);
+}
+
+.calibration-card-header {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-light);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.4rem;
+}
+
+.calibration-card-header i {
+  font-size: 0.9rem;
+}
+
+.calibration-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid hsla(230, 15%, 20%, 0.4);
+}
+
+.calibration-stat-row:last-child {
+  border-bottom: none;
+}
+
+.calibration-stat-label {
+  color: var(--text-secondary);
+}
+
+.calibration-stat-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.calibration-stat-val.highlight-green {
+  color: var(--match-strong);
+}
+
+.calibration-stat-val.highlight-gold {
+  color: var(--match-probable);
+}
+
+/* Cohesion Card dashboard */
+.cohesion-panel {
+  background: linear-gradient(135deg, var(--bg-dark) 0%, hsl(230, 20%, 8%) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.cohesion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cohesion-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cohesion-title i {
+  color: var(--accent-light);
+}
+
+.cohesion-quality-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-block;
+}
+
+.cohesion-quality-badge.excellent {
+  background-color: hsla(145, 80%, 45%, 0.12);
+  border: 1px solid var(--match-strong);
+  color: var(--match-strong);
+  box-shadow: 0 0 8px var(--match-strong-glow);
+}
+
+.cohesion-quality-badge.good {
+  background-color: hsla(38, 90%, 55%, 0.12);
+  border: 1px solid var(--match-possible);
+  color: var(--match-possible);
+  box-shadow: 0 0 8px var(--match-possible-glow);
+}
+
+.cohesion-quality-badge.weak {
+  background-color: hsla(355, 75%, 55%, 0.12);
+  border: 1px solid var(--match-none);
+  color: var(--match-none);
+  box-shadow: 0 0 8px var(--match-none-glow);
+}
+
+.cohesion-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cohesion-bar-track {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-card);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.cohesion-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-muted), var(--accent));
+  box-shadow: 0 0 8px var(--accent-glow);
+  transition: width var(--transition-smooth);
+}
+
+.cohesion-recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.cohesion-recommendation-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 0.35rem;
+  line-height: 1.3;
+}
+
+.cohesion-recommendation-item i {
+  color: var(--accent-light);
+  margin-top: 0.1rem;
+}
+
+/* Model Reasoning Steps */
+.reasoning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.reasoning-step-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  align-items: flex-start;
+  transition: border-color var(--transition-fast);
+}
+
+.reasoning-step-item:hover {
+  border-color: var(--accent-muted);
+}
+
+.reasoning-step-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.reasoning-step-icon.active {
+  background-color: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.reasoning-step-icon.success {
+  background-color: hsla(145, 80%, 45%, 0.15);
+  border-color: var(--match-strong);
+  color: var(--match-strong);
+}
+
+.reasoning-step-icon.warning {
+  background-color: hsla(38, 90%, 55%, 0.15);
+  border-color: var(--match-possible);
+  color: var(--match-possible);
+}
+
+.reasoning-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.reasoning-step-title {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.reasoning-step-desc {
+  color: var(--text-secondary);
 }

@@ -85,11 +85,12 @@ The system consists of a visual feature extractor, reference cache, mathematical
 - **Preprocess**: Resizes large images (max size 1024) to maintain lightweight CUDA memory, converts inputs to RGB, and generates feature embeddings.
 - **Normalization**: All output vectors are L2-normalized so that their dot products correspond to exact cosine similarity.
 
-### 2.2 Reference Bank & Cache (`ReferenceBank`)
-- **Centroid**: The average representation of all references, L2-normalized:
-  $$\mathbf{c} = \frac{\mathbf{c}_{raw}}{\|\mathbf{c}_{raw}\|_2}, \quad \text{where } \mathbf{c}_{raw} = \frac{1}{N}\sum_{i=1}^N \mathbf{e}_i$$
-- **Intra-Set Variance**: Tracks variance of reference similarity to the centroid to dynamically gauge the visual consistency of the campaign:
-  $$\sigma = \text{std}(\{\mathbf{e}_i \cdot \mathbf{c}\})$$
+### 2.2 Reference Bank & Cache (`ReferenceBank` & `ReferenceClusterEngine`)
+- **Reference Clustering**: Employs Cosine K-Means++ clustering via `ReferenceClusterEngine` to classify campaign reference images into distinct semantic groups (e.g., logo closeups, lifestyle shots, product displays).
+- **Cluster Centroids**: Normal-weighted centroids are computed for each distinct semantic cluster:
+  $$\mathbf{c}_k = \frac{\mathbf{c}_{raw, k}}{\|\mathbf{c}_{raw, k}\|_2}, \quad \text{where } \mathbf{c}_{raw, k} = \frac{1}{N_k}\sum_{i \in \text{Cluster}_k} \mathbf{e}_i$$
+- **Intra-Set Variance**: Tracks variance of reference similarity to the cluster centroids to dynamically gauge the visual consistency of the campaign:
+  $$\sigma = \text{std}(\{\mathbf{e}_i \cdot \mathbf{c}_{\text{closest}}\})$$
 - **Disk Cache**: Generates MD5 hash of the reference directory's file list, file sizes, and modified timestamps. Speeds up initialization 100x by loading compiled `.npz` files instead of re-processing images.
 
 ### 2.3 Hard Negative Bank & Competitor Suppression (`HardNegativeBank` & `CompetitorScorer`)
@@ -121,6 +122,32 @@ The system consists of a visual feature extractor, reference cache, mathematical
 Rather than flat static levels, thresholds are computed dynamically based on the campaign's visual variance:
 - Highly consistent campaigns (low variance) trigger strict thresholds to block competitors.
 - Creative campaigns (high variance) trigger flexible thresholds to allow diverse styling.
+
+### 2.7 Confidence Calibration & Sigmoid Platt Scaling (`ConfidenceCalibrator`)
+- **Sigmoid Platt Scaling**: Raw blended cosine similarities are typically distributed in the `[0.5, 0.95]` range. We map them into a normalized `[0, 1]` probability space:
+  $$P(\text{Match}) = \frac{1}{1 + e^{-k \cdot (S - x_0)}}$$
+  where:
+  - $S$ is the similarity score.
+  - $x_0$ is the midpoint, dynamically set to the campaign's `possible_threshold`.
+  - $k$ is the slope/sensitivity parameter ($k = 25.0$), ensuring that a score at the `strong_threshold` maps to $\ge 85\%$ confidence, while the midpoint maps to exactly $50\%$ confidence.
+- **Calibration Boost Heuristics**: Pre-sigmoid probability levels are modified by additive bonuses depending on semantic match context:
+  - **Social Media Adjustment**: An additive `+0.05` boost is applied to vertical layout files that map to a dominant lifestyle or brand cluster.
+  - **Product Boost**: An additive `+0.03` boost is applied if the best matching references belong to a packaging/branding cluster.
+  - **Hard Probability Cap**: The final boosted confidence is strictly capped at `0.98` to prevent saturated false alarms.
+
+### 2.8 Reference Cohesion & Silhouette Analysis (`EmbeddingAnalyzer`)
+- **Silhouette Score**: Evaluates the cohesion of reference set embeddings against distractor negative centroids.
+- **Outlier Detection**: References with a similarity score $< 0.65$ to the campaign centroid are flagged as visual outliers, raising diagnostic suggestions to prune or replace them to improve decision boundaries.
+
+### 2.9 Media Context & Format-Aware Threshold Offsets (`MediaContextEngine`)
+- **Aspect Ratio & Format Detection**: Detects portrait vs landscape orientations, classifying targets into standard media formats or vertical **Social Media formats** (such as Instagram Reels or TikTok videos).
+- **Social Media Overlays**: Detects potential overlay graphics, text regions, or compression-induced noise levels that can degrade visual search accuracy.
+- **Adaptive Threshold Offsets**: Automatically applies negative offset adjustments (e.g., `-0.02` to `-0.05`) to decision thresholds when analyzing files with heavy compression or UI overlays to prevent false negatives.
+- **Telemetry Integration**: Emits details of aspect ratio checks, format indicators, overlay warnings, and active threshold adjustment values to the explainability reporting blocks.
+
+### 2.10 Failure Case Collector & Near-Boundary Archives (`FailureCaseManager`)
+- **Telemetry Archiver**: Diagnostic logging tracks near-misses, high-competitor encroachment cases, and rapid visual spike anomalies.
+- **Disk Archiving**: Automatically serializes near-boundary queries, compressed target embeddings (`.npz` matrices), scores, thresholds, and metadata under a structured storage folder: `embedding_cache/failure_cases/`.
 
 ---
 

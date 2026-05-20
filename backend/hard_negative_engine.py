@@ -1,10 +1,10 @@
 """
 hard_negative_engine.py
 =======================
-Competitor awareness and false positive suppression engine.
+Competitor awareness, dynamic brand overlap penalization, and false positive suppression.
 
-This module processes distractor campaign assets (e.g. competitor brands, similar color
-schemes) and computes similarity margins to prevent false positive matches.
+Processes competitor distractor reference assets and computes overlap-aware margin
+penalties to prevent misclassifications and logo confusion.
 """
 
 from __future__ import annotations
@@ -143,7 +143,7 @@ class HardNegativeBank:
 
 class CompetitorScorer:
     """
-    Computes competitor proximity, ambiguity levels, and matching penalties.
+    Computes competitor proximity, ambiguity levels, and dynamic matching penalties.
     """
 
     def __init__(self, margin: float = 0.12):
@@ -156,7 +156,8 @@ class CompetitorScorer:
         negative_bank: HardNegativeBank,
     ) -> dict:
         """
-        Compares query similarities against both positive and negative banks.
+        Compares query similarities against both positive and negative banks using dynamic
+        overlap-aware penalization.
 
         Returns:
             dict containing:
@@ -194,33 +195,50 @@ class CompetitorScorer:
         best_comp_sim = float(competitor_sims[best_comp_idx])
         best_comp_name = negative_bank.names[best_comp_idx]
 
+        # Top-K negative average (captures global overlap with competitor collection)
+        k = min(3, len(competitor_sims))
+        top_k_neg_sim = float(np.sort(competitor_sims)[-k:].mean())
+
+        # Ambient centroid comparison
+        centroid_comp_sim = float(query_embedding @ negative_bank.centroid)
+
+        # Integrated Competitor Overlap score (blend of peak, top-K, and centroid negatives)
+        comp_overlap_score = best_comp_sim * 0.50 + top_k_neg_sim * 0.30 + centroid_comp_sim * 0.20
+
         # 2. Positive similarities for comparison
         pos_sims = positive_bank.embeddings @ query_embedding
         best_pos_sim = float(pos_sims.max())
 
-        # 3. Ambient centroid comparison
-        centroid_comp_sim = float(query_embedding @ negative_bank.centroid)
-
-        # 4. Ambiguity calculation
-        # If competitor similarity is high and close to positive similarity
-        diff = best_pos_sim - best_comp_sim
+        # 3. Dynamic margin difference
+        diff = best_pos_sim - comp_overlap_score
         
         # Ambiguity is high when diff is small
         ambiguity_score = 1.0 - np.clip(diff / self.margin, 0.0, 1.0)
         
-        # Penalize if competitor is a very close match (almost overlapping)
-        # Even if best_pos_sim is higher, if competitor is extremely high too, we penalize
+        # Dynamic Overlap-Aware Penalization:
+        # Penalty scales smoothly with absolute competitor strength and proximity.
+        # If competitor is a very close match, apply progressive non-linear penalty.
         penalty = 0.0
         warnings = []
-        if best_comp_sim > 0.65:
-            # Scale penalty based on ambiguity and absolute strength
-            penalty = ambiguity_score * 0.15 + max(0.0, (best_comp_sim - 0.70) * 0.15)
-            penalty = min(0.30, penalty) # Cap competitor penalty at 0.30
+        
+        if comp_overlap_score > 0.60:
+            # Multiplicative dynamic penalty: higher overlap score + higher ambiguity -> steeper penalty
+            raw_penalty = ambiguity_score * 0.18 + max(0.0, (comp_overlap_score - 0.65) * 0.22)
+            
+            # Non-linear scaling based on similarity level (sigmoid-like behavior near boundary)
+            scaling_factor = 1.0 / (1.0 + np.exp(-12.0 * (comp_overlap_score - 0.68)))
+            penalty = raw_penalty * scaling_factor
+            
+            # Cap the competitor penalty at 0.35 to maintain retrieval balance
+            penalty = min(0.35, float(penalty))
 
         status = "CLEAR"
-        if ambiguity_score > 0.5:
+        if ambiguity_score > 0.45 or best_comp_sim > 0.72:
             status = "AMBIGUOUS"
-            warnings.append(f"Competitor match '{best_comp_name}' (similarity: {best_comp_sim:.3f}) is too close to campaign positive (similarity: {best_pos_sim:.3f}). Margin is only {diff:.3f}.")
+            warnings.append(
+                f"Competitor match '{best_comp_name}' (similarity: {best_comp_sim:.3f}) is very close to campaign positive (similarity: {best_pos_sim:.3f}). "
+                f"Active margin: {best_pos_sim - best_comp_sim:.3f}. Competitor penalty applied: {penalty:.3f}."
+            )
 
         return {
             "competitor_similarity": round(best_comp_sim, 4),

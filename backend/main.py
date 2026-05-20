@@ -190,8 +190,12 @@ def campaign_match(req: CampaignMatchRequest):
         "num_targets": len(results),
         "matches": sum(1 for r in results if r.get("campaign_match")),
         "strong_matches": sum(1 for r in results if r.get("match_type") == "STRONG_MATCH"),
-        "possible_matches": sum(1 for r in results if r.get("match_type") == "POSSIBLE_MATCH"),
+        "possible_matches": sum(1 for r in results if r.get("match_type") in ("PROBABLE_STRONG_MATCH", "PROBABLE_MATCH", "POSSIBLE_MATCH")),
         "rejections": sum(1 for r in results if r.get("match_type") == "NO_MATCH"),
+        "cohesion_metrics": ref_bank.cohesion_metrics,
     }
 
-    return {"summary": summary, "results": results}
+    from analytics_engine import ScoreAnalyticsEngine
+    social_analytics = ScoreAnalyticsEngine.compile_social_analytics(results)
+
+    return {"summary": summary, "results": results, "social_analytics": social_analytics}

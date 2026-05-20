@@ -64,12 +64,14 @@ python verify_siglip_engine.py
 
 ### 3.1 Blended Similarities Calculations
 When an image or keyframe query embedding is matched against the campaign reference bank:
-- Max Similarity is evaluated to detect strong individual visual elements.
-- Top-K (K=5) Similarity represents the consistency of similar styles.
-- Centroid Similarity tracks global layout representation.
-- Blended result score:
-  $$Score = 0.40 \cdot Max + 0.35 \cdot TopK + 0.25 \cdot Centroid$$
+- **Max Similarity**: Evaluated to detect strong individual visual elements.
+- **Cluster Centroid Similarity**: Evaluated against the closest reference semantic cluster centroid to track layout alignment.
+- **Cluster Top-K Average Similarity**: Evaluated against the top matching references in the active cluster to capture consistency of styles.
+- **Blended result score**:
+  $$Score = 0.50 \cdot Max + 0.30 \cdot Centroid_{cluster} + 0.20 \cdot AvgK_{cluster}$$
 
-### 3.2 Dynamic Calibration Threshold bounds
-- High variance sets (e.g. lifestyle shoots, diverse angles) shift strong thresholds from 0.85 down to 0.80.
-- Multi-frame video matches calculate scores for frames individually, and vote on final verdict by taking the top 3-5 frames' mean score.
+### 3.2 Dynamic Calibration & Threshold Offsets
+- **Dynamic Base Threshold**: High variance reference sets (diverse campaigns) adaptively lower base thresholds to accommodate style diversity, while low variance sets (logo sheets) raise thresholds to defend against competitor overlaps.
+- **Social Media Adjustments**: If the target frame matches a social media layout (aspect ratio ~ 9:16) and hits a relevant visual cluster, a custom aspect overlay adjustment is applied to the thresholds.
+- **Confidence Platt Scaling**: Scores are mapped through a sigmoid function calibrated to ensure the decision midpoint aligns to 50% probability, capped at 0.98.
+- **Video Decision Voting**: Multi-frame matches compute scores per frame, smooth them using a Bartlett kernel, and pool the top-performing consecutive window sequence.

@@ -1,0 +1,14 @@
+{
+  "timestamp": 1779277506146,
+  "filename": "target_blue_pos.png",
+  "similarity_score": 1.0,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Relevant",
+  "threshold_used": 0.7,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "LOCALIZED BRAND BOOST: Applied +0.05 logo-focus boost due to dominant visual logo match."
+  ]
+}
