@@ -336,7 +336,20 @@ def _layer_clip_text(
     context: str,
 ) -> LayerResult:
     clip_model, clip_processor = _load_clip()
-    brand_prompts = _build_brand_prompts(brand_name, aliases, context)
+    
+    # Deduplicate brand names and filter out non-ASCII (Arabic) names which break CLIP
+    all_names = [brand_name] + (aliases or [])
+    all_names = list(dict.fromkeys([n.strip() for n in all_names if n and n.strip()]))
+    english_names = [name for name in all_names if all(ord(c) < 128 for c in name)]
+    
+    if not english_names:
+        # No English names to query CLIP with. CLIP is entirely English-trained.
+        return LayerResult(score=0.0, fired=False, evidence="No English brand names/aliases provided for CLIP Text.", weight=0.0)
+
+    brand_prompts = []
+    for name in english_names:
+        brand_prompts += _build_brand_prompts(name, [], context)
+    
     all_prompts = brand_prompts + _NEGATIVE_PROMPTS
 
     inputs = clip_processor(
@@ -345,35 +358,34 @@ def _layer_clip_text(
 
     with torch.no_grad():
         outputs = clip_model(**inputs)
-        # Shape: (1, num_prompts)
-        probs = outputs.logits_per_image.softmax(dim=-1).cpu().numpy()[0]
+        # logits_per_image shape: (1, num_prompts)
+        logits = outputs.logits_per_image.cpu().numpy()[0]
+
+    # HF stores log(scale) in logit_scale parameter. actual scale = exp(logit_scale)
+    logit_scale = float(torch.exp(clip_model.logit_scale).item()) if hasattr(clip_model, "logit_scale") else 100.0
+    cosine_sims = logits / logit_scale
 
     n_brand = len(brand_prompts)
-    brand_probs = probs[:n_brand]
-    negative_probs = probs[n_brand:]
+    brand_sims = cosine_sims[:n_brand]
+    negative_sims = cosine_sims[n_brand:]
 
-    best_brand_prob = float(brand_probs.max())
-    sum_brand_prob = float(brand_probs.sum())
-    best_negative_prob = float(negative_probs.max())
-    sum_negative_prob = float(negative_probs.sum())
+    best_brand_sim = float(brand_sims.max())
+    best_neg_sim = float(negative_sims.max())
 
-    # Key metric: how much total probability mass went to brand vs negative prompts
-    brand_ratio = sum_brand_prob / max(sum_negative_prob, 1e-6)
+    # Cosine threshold calibration:
+    # 1. Enforce minimum raw similarity to brand prompt to prevent firing on out-of-distribution noise
+    # 2. Require brand similarity to be higher than negative baseline
+    fired = (best_brand_sim >= 0.23) and (best_brand_sim > best_neg_sim + 0.01)
 
-    # Calibrated score: brand_ratio > 3 means brand prompts got 3× more mass
-    # than negatives → strong signal.  Ratio of ~1 means no signal.
-    normalized = min(1.0, max(0.0, (brand_ratio - 1.0) / 4.0))  # maps [1..5] → [0..1]
+    # Score mapping: maps similarity [0.21..0.28] -> [0.0..1.0]
+    score = min(1.0, max(0.0, (best_brand_sim - 0.21) / 0.07))
 
-    # Fire only when brand signal is meaningfully above negative baseline
-    fired = brand_ratio > 3.0 and best_brand_prob > best_negative_prob * 2.0
-
-    top_prompt = brand_prompts[int(brand_probs.argmax())]
+    top_prompt = brand_prompts[int(brand_sims.argmax())]
     evidence = (
-        f"Best: '{top_prompt}' (p={best_brand_prob:.4f}), "
-        f"brand_sum={sum_brand_prob:.4f}, neg_sum={sum_negative_prob:.4f}, "
-        f"ratio={brand_ratio:.2f}"
+        f"Best brand sim: {best_brand_sim:.3f} ('{top_prompt}'), "
+        f"best neg: {best_neg_sim:.3f}, diff: {best_brand_sim - best_neg_sim:.3f}"
     )
-    return LayerResult(score=normalized, fired=fired, evidence=evidence, weight=0.8)
+    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.8)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -435,61 +447,22 @@ def _layer_blip_caption(
 # Layer 4 — YOLO-World zero-shot detection
 # ──────────────────────────────────────────────────────────────
 
-# YOLO-World is a zero-shot *visual* detector — it can only find objects
-# whose names correspond to concrete visual concepts it learned during
-# pre-training (CLIP-grounded vocabulary).  Arbitrary brand names like
-# "Starbucks" are NOT in that vocabulary, so prompts such as
-# "Starbucks logo" will silently produce zero detections.
-#
-# Strategy:
-#   1. Use simple, visually-grounded class names (logo, sign, cup, …).
-#   2. Separate them into "strong" (logo/sign → brand identity) and
-#      "supporting" (cup/food/person → campaign context).
-#   3. Score accordingly: strong detections fire the layer, supporting
-#      detections raise the score but don't fire on their own.
-
-_STRONG_CLASSES: list[str] = [
-    "logo",
-    "brand logo",
-    "sign",
-    "store sign",
-    "storefront",
-    "banner",
-    "advertisement",
-    "poster",
-    "neon sign",
-    "text on wall",
-]
-
-_SUPPORTING_CLASSES: list[str] = [
-    "cup",
-    "coffee cup",
-    "drink",
-    "bottle",
-    "food",
-    "meal",
-    "menu",
-    "packaging",
-    "bag",
-    "box",
-    "person",
-    "restaurant",
-    "cafe",
-    "counter",
-    "table",
-]
-
-
 def _build_yolo_classes(brand_name: str, aliases: list[str]) -> list[str]:
     """
-    Build a list of detection class names for YOLO-World.
-
-    Only simple, visually-grounded nouns are used — YOLO-World cannot
-    resolve brand names it has never seen during training.
+    Build a list of specific brand detection class names for YOLO-World.
+    Avoid overly broad/generic classes like "cup", "storefront", or "packaging"
+    which trigger extreme zero-shot false positives on unrelated items/shops.
     """
-    # Combine strong + supporting; order matters for index mapping
-    classes = list(_STRONG_CLASSES) + list(_SUPPORTING_CLASSES)
-    # Deduplicate while preserving order
+    classes = []
+    all_names = [brand_name] + (aliases or [])
+    all_names = list(dict.fromkeys([n.strip() for n in all_names if n and n.strip()]))
+    for name in all_names:
+        classes += [
+            name,
+            f"{name} logo",
+            f"{name} sign",
+        ]
+    classes += ["brand logo", "store sign"]
     return list(dict.fromkeys(classes))
 
 
@@ -503,20 +476,19 @@ def _layer_yolo(
     classes = _build_yolo_classes(brand_name, aliases)
     yolo_model.set_classes(classes)
 
-    n_strong = len(_STRONG_CLASSES)
-
     try:
-        results = yolo_model.predict(tmp_path, conf=0.10, iou=0.45, verbose=False)
+        # Predict with a low threshold to capture potential low-conf matches for analysis,
+        # but calibrate firing logic strictly in post-processing.
+        results = yolo_model.predict(tmp_path, conf=0.05, iou=0.45, verbose=False)
     except Exception as e:
         return LayerResult(
             score=0.0, fired=False,
             evidence=f"YOLO error: {e}", weight=0.7,
         ), []
 
-    strong_detections: list[tuple[str, float]] = []
-    supporting_detections: list[tuple[str, float]] = []
-    max_strong_conf = 0.0
-    max_support_conf = 0.0
+    brand_detections: list[tuple[str, float]] = []
+    generic_detections: list[tuple[str, float]] = []
+    max_brand_conf = 0.0
 
     if results and len(results[0].boxes) > 0:
         boxes = results[0].boxes
@@ -526,32 +498,32 @@ def _layer_yolo(
             if cls_idx >= len(classes):
                 continue
             cls_name = classes[cls_idx]
-            det = (cls_name, round(conf, 3))
-
-            if cls_idx < n_strong:
-                strong_detections.append(det)
-                if conf > max_strong_conf:
-                    max_strong_conf = conf
+            
+            if cls_name in ["brand logo", "store sign"]:
+                generic_detections.append((cls_name, round(conf, 3)))
             else:
-                supporting_detections.append(det)
-                if conf > max_support_conf:
-                    max_support_conf = conf
+                # Specific brand class
+                if conf >= 0.35:
+                    brand_detections.append((cls_name, round(conf, 3)))
+                    if conf > max_brand_conf:
+                        max_brand_conf = conf
+                elif conf >= 0.15:
+                    # Treat lower-conf brand detections as generic to support the ensemble without firing hard proof
+                    generic_detections.append((f"{cls_name} (low-conf)", round(conf, 3)))
 
-    all_detections = strong_detections + supporting_detections
+    all_detections = brand_detections + generic_detections
 
-    if strong_detections:
-        # Strong class detected (logo, sign, etc.) → fire the layer
-        score = min(1.0, max_strong_conf * 1.2)
+    if brand_detections:
+        # High confidence specific brand match
+        score = min(1.0, max_brand_conf * 2.0)
         fired = True
-        evidence = f"Strong: {strong_detections}"
-        if supporting_detections:
-            evidence += f" | Supporting: {supporting_detections}"
-    elif supporting_detections:
-        # Only scene-context objects → moderate score, don't fire
-        # (these alone don't prove brand presence)
-        score = min(0.45, max_support_conf * 0.6)
-        fired = len(supporting_detections) >= 3   # fire only if scene is rich
-        evidence = f"Supporting only: {supporting_detections}"
+        evidence = f"Brand detected with high confidence: {brand_detections}"
+    elif generic_detections:
+        # Only generic logos/signs or low-conf brand detections found. Do not fire hard proof.
+        best_generic_conf = max(c[1] for c in generic_detections)
+        score = min(0.3, best_generic_conf * 0.5)
+        fired = False
+        evidence = f"Only generic or low-confidence objects: {generic_detections}"
     else:
         score = 0.0
         fired = False
@@ -751,9 +723,11 @@ def _weighted_ensemble(result: BrandDetectionResult) -> float:
     Key design decisions:
     - Layers with weight=0.0 are excluded entirely (disabled/absent layers).
     - Fired layers get a 1.5× weight bonus.
-    - Final score = max(weighted_avg, best_fired_score * 0.85) so that a
-      single strong signal is never drowned by inactive layers.
-    - Cross-layer corroboration bonus: if 3+ layers fired, add 10%.
+    - Max-pooling is restricted to high-reliability "hard proof" layers
+      (CLIP Image Similarity and OCR Text) so that weak/noisy semantic signals
+      (CLIP Text, BLIP Caption) cannot single-handedly drive the final score.
+    - Final score = max(weighted_avg, best_fired_score * 0.85).
+    - Cross-layer corroboration bonus: if 3+ layers fired, add 10%; if 2+ fired, add 5%.
     """
     layers = [
         result.clip_image_similarity,
@@ -766,7 +740,6 @@ def _weighted_ensemble(result: BrandDetectionResult) -> float:
 
     total_weight = 0.0
     weighted_sum = 0.0
-    best_fired_score = 0.0
     fired_count = 0
 
     for layer in layers:
@@ -778,12 +751,20 @@ def _weighted_ensemble(result: BrandDetectionResult) -> float:
         total_weight += effective_weight
         if layer.fired:
             fired_count += 1
-            if layer.score > best_fired_score:
-                best_fired_score = layer.score
 
     weighted_avg = weighted_sum / total_weight if total_weight > 0 else 0.0
 
-    # Max-pooling: don't let a single strong signal get drowned
+    # Max-pooling: only allow CLIP Image and OCR to pool (prevent noisy soft layers from dominating)
+    best_fired_score = 0.0
+    reliable_layers = [
+        result.clip_image_similarity,
+        result.ocr_text,
+    ]
+    for layer in reliable_layers:
+        if layer.weight > 0.0 and layer.fired:
+            if layer.score > best_fired_score:
+                best_fired_score = layer.score
+
     score = max(weighted_avg, best_fired_score * 0.85)
 
     # Corroboration bonus: multiple layers agreeing increases confidence
