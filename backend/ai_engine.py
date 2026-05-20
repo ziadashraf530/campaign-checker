@@ -268,7 +268,8 @@ def _layer_clip_image(
     reference_embeddings: list[torch.Tensor],
 ) -> LayerResult:
     if not reference_embeddings:
-        return LayerResult(score=0.0, fired=False, evidence="No reference images provided.", weight=4.0)
+        # weight=0 → this layer is excluded from the ensemble entirely
+        return LayerResult(score=0.0, fired=False, evidence="No reference images provided.", weight=0.0)
 
     clip_model, clip_processor = _load_clip()
     inputs = clip_processor(images=image, return_tensors="pt").to(device)
@@ -279,16 +280,20 @@ def _layer_clip_image(
 
     similarities = []
     for ref_feat in reference_embeddings:
+        # Both vectors are L2-normalized → dot product = cosine similarity ∈ [0, 1]
         sim = float((target_feat @ ref_feat.T).item())
-        # cosine similarity is in [-1, 1]; normalize to [0, 1]
-        sim_norm = (sim + 1.0) / 2.0
-        similarities.append(sim_norm)
+        similarities.append(sim)
 
     best_sim = max(similarities)
-    # Threshold: >0.80 is a strong match for visual brand reference
-    fired = best_sim > 0.80
-    evidence = f"Best reference similarity: {best_sim:.3f} ({len(reference_embeddings)} refs)"
-    return LayerResult(score=best_sim, fired=fired, evidence=evidence, weight=4.0)
+    avg_sim = sum(similarities) / len(similarities)
+    # Use a blend: heavily weight the best match but consider average too
+    blended = best_sim * 0.7 + avg_sim * 0.3
+
+    # For CLIP ViT-L/14, same-brand images typically score >0.70 cosine,
+    # unrelated images score 0.35–0.55.
+    fired = blended > 0.75
+    evidence = f"Best ref sim: {best_sim:.3f}, avg: {avg_sim:.3f}, blended: {blended:.3f} ({len(reference_embeddings)} refs)"
+    return LayerResult(score=blended, fired=fired, evidence=evidence, weight=4.0)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -297,29 +302,31 @@ def _layer_clip_image(
 
 def _build_brand_prompts(brand_name: str, aliases: list[str], context: str) -> list[str]:
     """
-    Generate a diverse ensemble of CLIP text prompts.
-    More prompts = more robust signal, especially for logos/signage.
+    Generate CLIP text prompts focused on detecting the brand name.
+    Prompts are tightly scoped to the brand itself — no generic
+    restaurant/cafe/food prompts that could trigger false positives.
     """
     all_names = [brand_name] + (aliases or [])
     prompts = []
     for name in all_names:
         prompts += [
-            f"a photo of {name}",
-            f"a photo of {name} restaurant",
-            f"a photo of {name} logo",
+            f"a photo showing the brand {name}",
+            f"the {name} logo",
             f"a sign that says {name}",
-            f"a storefront with {name} branding",
-            f"a food promotional post for {name}",
-            f"an influencer post at {name}",
-            f"{name} cafe interior",
-            f"{name} food and drinks",
-            f"the {name} brand",
+            f"the word {name} written on something",
+            f"{name} branding",
+            f"a {name} product",
         ]
-    if context:
-        prompts.append(f"a promotional photo for {context}")
-    # Negative anchor for calibration
-    prompts.append("a random unrelated photo")
     return prompts
+
+
+_NEGATIVE_PROMPTS: list[str] = [
+    "a random photo",
+    "a generic photo",
+    "a photo of food or drinks",
+    "a generic product with no brand",
+    "a sign or storefront without logos",
+]
 
 
 def _layer_clip_text(
@@ -329,36 +336,56 @@ def _layer_clip_text(
     context: str,
 ) -> LayerResult:
     clip_model, clip_processor = _load_clip()
-    prompts = _build_brand_prompts(brand_name, aliases, context)
+    
+    # Deduplicate brand names and filter out non-ASCII (Arabic) names which break CLIP
+    all_names = [brand_name] + (aliases or [])
+    all_names = list(dict.fromkeys([n.strip() for n in all_names if n and n.strip()]))
+    english_names = [name for name in all_names if all(ord(c) < 128 for c in name)]
+    
+    if not english_names:
+        # No English names to query CLIP with. CLIP is entirely English-trained.
+        return LayerResult(score=0.0, fired=False, evidence="No English brand names/aliases provided for CLIP Text.", weight=0.0)
+
+    brand_prompts = []
+    for name in english_names:
+        brand_prompts += _build_brand_prompts(name, [], context)
+    
+    all_prompts = brand_prompts + _NEGATIVE_PROMPTS
 
     inputs = clip_processor(
-        text=prompts, images=image, return_tensors="pt", padding=True, truncation=True
+        text=all_prompts, images=image, return_tensors="pt", padding=True, truncation=True
     ).to(device)
 
     with torch.no_grad():
         outputs = clip_model(**inputs)
-        # Shape: (1, num_prompts)
-        probs = outputs.logits_per_image.softmax(dim=-1).cpu().numpy()[0]
+        # logits_per_image shape: (1, num_prompts)
+        logits = outputs.logits_per_image.cpu().numpy()[0]
 
-    # All brand prompts are indices 0..(len-2); last is negative anchor
-    brand_probs = probs[:-1]
-    best_prob = float(brand_probs.max())
-    mean_brand_prob = float(brand_probs.mean())
-    negative_prob = float(probs[-1])
+    # HF stores log(scale) in logit_scale parameter. actual scale = exp(logit_scale)
+    logit_scale = float(torch.exp(clip_model.logit_scale).item()) if hasattr(clip_model, "logit_scale") else 100.0
+    cosine_sims = logits / logit_scale
 
-    # Relative score: brand signal vs random baseline
-    relative_score = min(1.0, best_prob / max(negative_prob, 1e-6) / 10.0)
-    # Use a blended score
-    blended = (best_prob * 0.6 + mean_brand_prob * 0.2 + relative_score * 0.2)
-    normalized = min(1.0, blended * 3.0)  # scale up softmax values
+    n_brand = len(brand_prompts)
+    brand_sims = cosine_sims[:n_brand]
+    negative_sims = cosine_sims[n_brand:]
 
-    fired = best_prob > 0.05 or normalized > 0.45
-    top_prompt = prompts[int(brand_probs.argmax())]
+    best_brand_sim = float(brand_sims.max())
+    best_neg_sim = float(negative_sims.max())
+
+    # Cosine threshold calibration:
+    # 1. Enforce minimum raw similarity to brand prompt to prevent firing on out-of-distribution noise
+    # 2. Require brand similarity to be higher than negative baseline
+    fired = (best_brand_sim >= 0.23) and (best_brand_sim > best_neg_sim + 0.01)
+
+    # Score mapping: maps similarity [0.21..0.28] -> [0.0..1.0]
+    score = min(1.0, max(0.0, (best_brand_sim - 0.21) / 0.07))
+
+    top_prompt = brand_prompts[int(brand_sims.argmax())]
     evidence = (
-        f"Best prompt: '{top_prompt}' (p={best_prob:.4f}), "
-        f"mean={mean_brand_prob:.4f}, negative={negative_prob:.4f}"
+        f"Best brand sim: {best_brand_sim:.3f} ('{top_prompt}'), "
+        f"best neg: {best_neg_sim:.3f}, diff: {best_brand_sim - best_neg_sim:.3f}"
     )
-    return LayerResult(score=normalized, fired=fired, evidence=evidence, weight=1.0)
+    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.8)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -375,6 +402,7 @@ def _layer_blip_caption(
     all_terms = [brand_name.lower()] + [a.lower() for a in (aliases or [])] + \
                 [k.lower() for k in (keywords or [])]
 
+    # ── Pass 1: Unconditional caption ─────────────────────────
     inputs = blip_processor(image, return_tensors="pt").to(device)
     with torch.no_grad():
         out = blip_model.generate(
@@ -383,24 +411,36 @@ def _layer_blip_caption(
             num_beams=5,
             length_penalty=1.2,
         )
-    caption = blip_processor.decode(out[0], skip_special_tokens=True).strip().lower()
+    caption_free = blip_processor.decode(out[0], skip_special_tokens=True).strip().lower()
 
-    matched = [t for t in all_terms if t and t in caption]
+    # Giving BLIP a conditional prompt like "a photo of {brand_name}"
+    # makes it hallucinate the brand on generic photos, causing false positives.
+    # We must only rely on the unconditional caption!
+
+    matched = []
+    for t in all_terms:
+        if t and t in caption_free:
+            matched.append(t)
+    # Deduplicate
+    matched = list(dict.fromkeys(matched))
+
     score = min(1.0, len(matched) * 0.5) if matched else 0.0
 
     # Even without exact match, food/restaurant scene bumps score
     restaurant_words = {
         "restaurant", "cafe", "coffee", "food", "menu", "dining",
         "meal", "dish", "drink", "table", "interior", "storefront",
+        "starbucks", "cup", "logo", "sign", "brand",
         "مطعم", "كافيه", "قهوة", "طعام", "مشروب", "مقهى",  # Arabic
     }
-    scene_match = bool(restaurant_words & set(caption.split()))
+    combined_words = set(caption_free.split())
+    scene_match = bool(restaurant_words & combined_words)
     if scene_match and not matched:
         score = max(score, 0.25)
 
     fired = bool(matched)
-    evidence = f"Caption: '{caption}' | Matched: {matched}"
-    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.6), caption, matched
+    evidence = f"Caption: '{caption_free}' | Matched: {matched}"
+    return LayerResult(score=score, fired=fired, evidence=evidence, weight=0.7), caption_free, matched
 
 
 # ──────────────────────────────────────────────────────────────
@@ -408,21 +448,21 @@ def _layer_blip_caption(
 # ──────────────────────────────────────────────────────────────
 
 def _build_yolo_classes(brand_name: str, aliases: list[str]) -> list[str]:
-    """Build a rich list of detection class names for YOLO-World."""
+    """
+    Build a list of specific brand detection class names for YOLO-World.
+    Avoid overly broad/generic classes like "cup", "storefront", or "packaging"
+    which trigger extreme zero-shot false positives on unrelated items/shops.
+    """
     classes = []
     all_names = [brand_name] + (aliases or [])
+    all_names = list(dict.fromkeys([n.strip() for n in all_names if n and n.strip()]))
     for name in all_names:
         classes += [
             name,
             f"{name} logo",
             f"{name} sign",
-            f"{name} product",
-            f"{name} packaging",
-            f"{name} storefront",
         ]
-    # Generic food-service classes (always useful for restaurant campaigns)
-    classes += ["restaurant sign", "cafe sign", "food menu", "brand logo"]
-    # Deduplicate
+    classes += ["brand logo", "store sign"]
     return list(dict.fromkeys(classes))
 
 
@@ -437,37 +477,60 @@ def _layer_yolo(
     yolo_model.set_classes(classes)
 
     try:
-        results = yolo_model.predict(tmp_path, conf=0.12, iou=0.5, verbose=False)
+        # Predict with a low threshold to capture potential low-conf matches for analysis,
+        # but calibrate firing logic strictly in post-processing.
+        results = yolo_model.predict(tmp_path, conf=0.05, iou=0.45, verbose=False)
     except Exception as e:
         return LayerResult(
             score=0.0, fired=False,
             evidence=f"YOLO error: {e}", weight=0.7,
         ), []
 
-    detected_classes = []
-    max_conf = 0.0
+    brand_detections: list[tuple[str, float]] = []
+    generic_detections: list[tuple[str, float]] = []
+    max_brand_conf = 0.0
+
     if results and len(results[0].boxes) > 0:
         boxes = results[0].boxes
         for i in range(len(boxes)):
             cls_idx = int(boxes.cls[i].item())
             conf = float(boxes.conf[i].item())
-            if cls_idx < len(classes):
-                detected_classes.append((classes[cls_idx], round(conf, 3)))
-            if conf > max_conf:
-                max_conf = conf
+            if cls_idx >= len(classes):
+                continue
+            cls_name = classes[cls_idx]
+            
+            if cls_name in ["brand logo", "store sign"]:
+                generic_detections.append((cls_name, round(conf, 3)))
+            else:
+                # Specific brand class
+                if conf >= 0.35:
+                    brand_detections.append((cls_name, round(conf, 3)))
+                    if conf > max_brand_conf:
+                        max_brand_conf = conf
+                elif conf >= 0.15:
+                    # Treat lower-conf brand detections as generic to support the ensemble without firing hard proof
+                    generic_detections.append((f"{cls_name} (low-conf)", round(conf, 3)))
 
-    if detected_classes:
-        # Weighted by confidence
-        score = min(1.0, max_conf * 1.2)
+    all_detections = brand_detections + generic_detections
+
+    if brand_detections:
+        # High confidence specific brand match
+        score = min(1.0, max_brand_conf * 2.0)
         fired = True
-        evidence = f"Detected: {detected_classes}"
+        evidence = f"Brand detected with high confidence: {brand_detections}"
+    elif generic_detections:
+        # Only generic logos/signs or low-conf brand detections found. Do not fire hard proof.
+        best_generic_conf = max(c[1] for c in generic_detections)
+        score = min(0.3, best_generic_conf * 0.5)
+        fired = False
+        evidence = f"Only generic or low-confidence objects: {generic_detections}"
     else:
         score = 0.0
         fired = False
-        evidence = "No brand objects detected."
+        evidence = "No relevant objects detected."
 
     layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=0.7)
-    return layer, [c[0] for c in detected_classes]
+    return layer, [c[0] for c in all_detections]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -491,12 +554,59 @@ def _fuzzy_contains(haystack: str, needle: str) -> bool:
     return _normalize_text(needle) in _normalize_text(haystack)
 
 
+def _edit_distance(a: str, b: str) -> int:
+    """Simple Levenshtein distance for short strings."""
+    n, m = len(a), len(b)
+    if n == 0:
+        return m
+    if m == 0:
+        return n
+    dp = list(range(m + 1))
+    for i in range(1, n + 1):
+        prev = dp[0]
+        dp[0] = i
+        for j in range(1, m + 1):
+            temp = dp[j]
+            if a[i - 1] == b[j - 1]:
+                dp[j] = prev
+            else:
+                dp[j] = 1 + min(prev, dp[j], dp[j - 1])
+            prev = temp
+    return dp[m]
+
+
+def _fuzzy_match_brand(haystack: str, needle: str, max_dist: int = 2) -> bool:
+    """
+    Check if needle appears in haystack with either:
+    - Exact normalized containment, OR
+    - Edit distance ≤ max_dist against any word/window in the haystack.
+    """
+    if _fuzzy_contains(haystack, needle):
+        return True
+    # Sliding-window edit distance for short brand names
+    h_norm = _normalize_text(haystack)
+    n_norm = _normalize_text(needle)
+    if len(n_norm) < 3:
+        return False  # too short for fuzzy — require exact
+    words = h_norm.split()
+    for word in words:
+        if abs(len(word) - len(n_norm)) <= max_dist:
+            if _edit_distance(word, n_norm) <= max_dist:
+                return True
+    return False
+
+
 def _layer_ocr(
     image: Image.Image,
     brand_name: str,
     aliases: list[str],
     hashtags: list[str],
 ) -> LayerResult:
+    """
+    OCR layer — extract visible text and check for the brand name,
+    aliases, and hashtags.  Uses edit-distance fuzzy matching to
+    handle OCR misreads (e.g. 'Starbvcks' → 'Starbucks').
+    """
     reader = _load_ocr()
     img_array = np.array(image)
 
@@ -505,19 +615,26 @@ def _layer_ocr(
     except Exception as e:
         return LayerResult(
             score=0.0, fired=False, evidence=f"OCR error: {e}", weight=0.7
-        ), ""
+        ), "", []   # Fixed: return 3 values on error
 
     all_text = " ".join(item[1] for item in ocr_results)
-    all_terms = (
-        [brand_name]
-        + (aliases or [])
-        + [h.lstrip("#") for h in (hashtags or [])]
-    )
 
-    matched = []
-    for term in all_terms:
-        if term and _fuzzy_contains(all_text, term):
-            matched.append(term)
+    # Primary: brand name and aliases (strong signal)
+    brand_terms = [brand_name] + (aliases or [])
+    # Secondary: hashtags (supporting signal)
+    hashtag_terms = [h.lstrip("#") for h in (hashtags or []) if h]
+
+    brand_matched = []
+    for term in brand_terms:
+        if term and _fuzzy_match_brand(all_text, term):
+            brand_matched.append(term)
+
+    hashtag_matched = []
+    for tag in hashtag_terms:
+        if tag and _fuzzy_contains(all_text, tag):
+            hashtag_matched.append(tag)
+
+    all_matched = list(dict.fromkeys(brand_matched + hashtag_matched))
 
     # Confidence-weighted OCR score
     if ocr_results:
@@ -525,16 +642,21 @@ def _layer_ocr(
     else:
         avg_ocr_conf = 0.0
 
-    if matched:
-        score = min(1.0, 0.5 + avg_ocr_conf * 0.5)
+    if brand_matched:
+        # Brand name found → strong fire
+        score = min(1.0, 0.6 + avg_ocr_conf * 0.4)
+        fired = True
+    elif hashtag_matched:
+        # Only hashtags found → moderate signal
+        score = min(0.7, 0.3 + avg_ocr_conf * 0.3)
         fired = True
     else:
         score = 0.0
         fired = False
 
-    evidence = f"OCR text: '{all_text[:200]}' | Matched: {matched}"
+    evidence = f"OCR text: '{all_text[:200]}' | Brand: {brand_matched} | Hashtags: {hashtag_matched}"
     layer = LayerResult(score=score, fired=fired, evidence=evidence, weight=0.7)
-    return layer, all_text, matched
+    return layer, all_text, all_matched
 
 
 # ──────────────────────────────────────────────────────────────
@@ -596,8 +718,16 @@ def _layer_color(
 
 def _weighted_ensemble(result: BrandDetectionResult) -> float:
     """
-    Weighted average of all layer scores.
-    Layers with 'fired=True' get a bonus multiplier to reward strong signals.
+    Ensemble score combining weighted average with max-pooling.
+
+    Key design decisions:
+    - Layers with weight=0.0 are excluded entirely (disabled/absent layers).
+    - Fired layers get a 1.5× weight bonus.
+    - Max-pooling is restricted to high-reliability "hard proof" layers
+      (CLIP Image Similarity and OCR Text) so that weak/noisy semantic signals
+      (CLIP Text, BLIP Caption) cannot single-handedly drive the final score.
+    - Final score = max(weighted_avg, best_fired_score * 0.85).
+    - Cross-layer corroboration bonus: if 3+ layers fired, add 10%; if 2+ fired, add 5%.
     """
     layers = [
         result.clip_image_similarity,
@@ -607,14 +737,43 @@ def _weighted_ensemble(result: BrandDetectionResult) -> float:
         result.ocr_text,
         result.color_fingerprint,
     ]
+
     total_weight = 0.0
     weighted_sum = 0.0
+    fired_count = 0
+
     for layer in layers:
-        effective_weight = layer.weight * (1.3 if layer.fired else 1.0)
+        # Skip disabled/absent layers (weight=0)
+        if layer.weight <= 0.0:
+            continue
+        effective_weight = layer.weight * (1.5 if layer.fired else 1.0)
         weighted_sum += layer.score * effective_weight
         total_weight += effective_weight
+        if layer.fired:
+            fired_count += 1
 
-    return weighted_sum / total_weight if total_weight > 0 else 0.0
+    weighted_avg = weighted_sum / total_weight if total_weight > 0 else 0.0
+
+    # Max-pooling: only allow CLIP Image and OCR to pool (prevent noisy soft layers from dominating)
+    best_fired_score = 0.0
+    reliable_layers = [
+        result.clip_image_similarity,
+        result.ocr_text,
+    ]
+    for layer in reliable_layers:
+        if layer.weight > 0.0 and layer.fired:
+            if layer.score > best_fired_score:
+                best_fired_score = layer.score
+
+    score = max(weighted_avg, best_fired_score * 0.85)
+
+    # Corroboration bonus: multiple layers agreeing increases confidence
+    if fired_count >= 3:
+        score = min(1.0, score + 0.10)
+    elif fired_count >= 2:
+        score = min(1.0, score + 0.05)
+
+    return score
 
 
 def _determine_verdict(
@@ -624,33 +783,44 @@ def _determine_verdict(
     """
     Convert ensemble score + hard signals into a final verdict.
 
-    Hard rules (override thresholds):
-    - OCR matched brand name  → always at least Uncertain
-    - YOLO detected brand     → always at least Uncertain
-    - Both OCR + YOLO fired   → Relevant (strong physical evidence)
+    Priority rules:
+    1. Brand name detected via OCR → very high confidence ("Relevant")
+       The brand name being visible is near-definitive proof.
+    2. Name NOT detected via OCR → other visual layers still contribute normally;
+       content can still reach "Relevant" or "Uncertain" via reference
+       image match, YOLO, BLIP, or color signals.
     """
-    # Hard/soft signal overrides to reduce false negatives.
-    hard_signals = {
-        "ocr": result.ocr_text.fired,
-        "yolo": result.yolo_detection.fired,
+    # Only OCR is definitive proof. CLIP text is an embedding match, not a text match.
+    brand_name_detected = result.ocr_text.fired
+
+    # ── Priority 1: Brand name is visible in the content ──────────
+    if brand_name_detected:
+        # OCR found the actual text → strongest proof
+        confidence = max(ensemble_score, 0.90)
+        confidence = min(1.0, confidence)
+        return "Relevant", round(confidence * 100, 1)
+
+    # ── Priority 2: No name detected — rely on visual evidence ────
+    visual_signals = {
         "clip_image": result.clip_image_similarity.fired,
+        "yolo": result.yolo_detection.fired,
     }
-    soft_signals = {
-        "clip_text": result.clip_text_score.fired,
+    supporting_signals = {
         "blip": result.blip_caption.fired,
+        "color": result.color_fingerprint.fired,
     }
-    hard_count = sum(hard_signals.values())
-    soft_count = sum(soft_signals.values())
+    visual_count = sum(visual_signals.values())
+    support_count = sum(supporting_signals.values())
 
     if result.clip_image_similarity.fired and result.clip_image_similarity.score >= 0.85:
-        # Very strong visual match to reference images.
+        # Very strong visual match to reference images
         confidence = max(ensemble_score, 0.75)
-    elif hard_count >= 2 or (hard_count >= 1 and soft_count >= 1) or soft_count >= 2:
-        # Multiple agreeing signals.
-        confidence = max(ensemble_score, 0.70)
-    elif hard_count == 1 or soft_count == 1:
-        # Single signal suggests at least Uncertain.
-        confidence = max(ensemble_score, 0.55)
+    elif visual_count >= 2 or (visual_count >= 1 and support_count >= 1):
+        # Multiple agreeing visual signals
+        confidence = max(ensemble_score, 0.65)
+    elif visual_count == 1 or support_count >= 2:
+        # Single visual or multiple supporting signals → at least Uncertain
+        confidence = max(ensemble_score, 0.50)
     else:
         confidence = ensemble_score
 
@@ -736,7 +906,7 @@ def detect_brand(
             result.yolo_classes_found = yolo_classes
         else:
             result.yolo_detection = LayerResult(
-                score=0.0, fired=False, evidence="YOLO disabled.", weight=0.7
+                score=0.0, fired=False, evidence="YOLO disabled.", weight=0.0
             )
 
         # ── Layer 5: OCR ────────────────────────────────────────
@@ -749,7 +919,7 @@ def detect_brand(
             result.matched_terms = list(set(result.matched_terms + ocr_matched))
         else:
             result.ocr_text = LayerResult(
-                score=0.0, fired=False, evidence="OCR disabled.", weight=0.7
+                score=0.0, fired=False, evidence="OCR disabled.", weight=0.0
             )
 
         # ── Layer 6: Color fingerprint ──────────────────────────
@@ -757,7 +927,7 @@ def detect_brand(
             result.color_fingerprint = _layer_color(image, brand_palette_hex)
         else:
             result.color_fingerprint = LayerResult(
-                score=0.0, fired=False, evidence="Color check disabled/no palette.", weight=0.3
+                score=0.0, fired=False, evidence="Color check disabled/no palette.", weight=0.0
             )
 
         # ── Ensemble + verdict ──────────────────────────────────
