@@ -2,6 +2,107 @@ import cv2
 import os
 import glob
 import math
+import numpy as np
+
+
+def extract_keyframes(
+    video_path: str,
+    output_folder: str = "temp_frames",
+    interval_seconds: float = 2.0,
+    max_frames: int = 15,
+    scene_change_threshold: float = 0.4,
+) -> list[str]:
+    """
+    Smart keyframe extraction for campaign matching.
+
+    Extracts frames at regular intervals plus scene-change frames.
+    Designed for visual campaign verification where diverse keyframes
+    improve matching accuracy.
+
+    Args:
+        video_path: Path to video file
+        output_folder: Directory to save extracted frames
+        interval_seconds: Extract 1 frame every N seconds (default: 2.0)
+        max_frames: Maximum number of frames to extract (default: 15)
+        scene_change_threshold: Histogram diff threshold for scene changes (0-1)
+
+    Returns:
+        List of file paths to extracted keyframe images
+    """
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Clean up old keyframes
+    for f in glob.glob(os.path.join(output_folder, "keyframe_*.jpg")):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return []
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    if total_frames <= 0 or fps <= 0:
+        cap.release()
+        return []
+
+    duration = total_frames / fps
+    frame_interval = int(fps * interval_seconds)
+
+    # Build target frame indices at regular intervals
+    target_indices = set()
+    # Always include first and last frame
+    target_indices.add(0)
+    target_indices.add(max(0, total_frames - 1))
+
+    # Regular interval frames
+    idx = 0
+    while idx < total_frames:
+        target_indices.add(idx)
+        idx += frame_interval
+
+    target_indices = sorted(target_indices)
+
+    # Extract frames and optionally detect scene changes
+    frames = []
+    prev_hist = None
+
+    for target_idx in target_indices:
+        if len(frames) >= max_frames:
+            break
+
+        cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
+        ret, frame = cap.read()
+        if not ret:
+            continue
+
+        # Scene change detection via histogram comparison
+        save_frame = True
+        if prev_hist is not None and len(frames) > 2:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            curr_hist = cv2.calcHist([gray], [0], None, [64], [0, 256])
+            curr_hist = cv2.normalize(curr_hist, curr_hist).flatten()
+            similarity = cv2.compareHist(prev_hist, curr_hist, cv2.HISTCMP_CORREL)
+            # Skip near-duplicate frames (very similar histogram)
+            if similarity > 0.98:
+                save_frame = False
+
+        if save_frame:
+            path = os.path.join(output_folder, f"keyframe_{target_idx:06d}.jpg")
+            cv2.imwrite(path, frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            frames.append(path)
+
+            # Update histogram for next comparison
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            prev_hist = cv2.calcHist([gray], [0], None, [64], [0, 256])
+            prev_hist = cv2.normalize(prev_hist, prev_hist).flatten()
+
+    cap.release()
+    return frames
+
 
 def extract_frames(video_path, output_folder="temp_frames", max_frames=6):
     """

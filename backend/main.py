@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ai_engine import detect_brand, detect_brand_from_frames, build_reference_embeddings
-from video_utils import extract_frames
+from video_utils import extract_frames, extract_keyframes
 from file_scanner import scan_data_folder
 
-app = FastAPI()
+app = FastAPI(title="Campaign Checker", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,10 +16,18 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return {"status": "running"}
+    return {"status": "running", "version": "2.0.0"}
+
+@app.get("/health")
+def health():
+    return {"status": "healthy", "engine": "siglip + legacy"}
 
 from pydantic import BaseModel
 import os
+
+# ──────────────────────────────────────────────────────────────
+# Legacy brand detection endpoint (preserved)
+# ──────────────────────────────────────────────────────────────
 
 class AnalysisRequest(BaseModel):
     brand_name: str
@@ -91,3 +99,99 @@ def run_analysis(req: AnalysisRequest):
         })
 
     return {"results": results}
+
+
+# ──────────────────────────────────────────────────────────────
+# NEW: SigLIP campaign matching endpoint
+# ──────────────────────────────────────────────────────────────
+
+class CampaignMatchRequest(BaseModel):
+    reference_path: str
+    target_path: str
+    campaign_name: str | None = "campaign"
+    debug: bool = False
+
+@app.post("/campaign-match/")
+def campaign_match(req: CampaignMatchRequest):
+    """
+    Visual campaign matching using SigLIP embeddings.
+
+    Given a folder of reference campaign images and a target image/folder/video,
+    determines whether the target content belongs to the same campaign.
+    """
+    from siglip_engine import (
+        build_reference_bank,
+        match_campaign_image,
+        match_campaign_video,
+        CampaignMatchResult,
+    )
+
+    # Validate paths
+    if not os.path.exists(req.reference_path):
+        return {"error": f"Reference path not found: {req.reference_path}", "results": []}
+    if not os.path.exists(req.target_path):
+        return {"error": f"Target path not found: {req.target_path}", "results": []}
+
+    # Build reference bank
+    ref_bank = build_reference_bank(req.reference_path)
+    if not ref_bank.is_ready:
+        return {"error": "No valid reference images found", "results": []}
+
+    # Debug directory
+    debug_dir = None
+    if req.debug:
+        debug_dir = os.path.join(os.path.dirname(__file__), "debug_output")
+
+    # Collect target files
+    target_files = []
+    if os.path.isfile(req.target_path):
+        target_files.append(req.target_path)
+    elif os.path.isdir(req.target_path):
+        for root, _, files in os.walk(req.target_path):
+            for f in sorted(files):
+                ext = f.lower().rsplit(".", 1)[-1] if "." in f else ""
+                if ext in ("png", "jpg", "jpeg", "webp", "bmp", "mp4", "avi", "mov", "mkv"):
+                    target_files.append(os.path.join(root, f))
+
+    if not target_files:
+        return {"error": "No supported files found in target path", "results": []}
+
+    # Process each file
+    results = []
+    for filepath in target_files:
+        ext = filepath.lower().rsplit(".", 1)[-1] if "." in filepath else ""
+        filename = os.path.basename(filepath)
+
+        if ext in ("mp4", "avi", "mov", "mkv"):
+            # Video: extract keyframes then match
+            keyframes = extract_keyframes(filepath, max_frames=15)
+            if keyframes:
+                match_result = match_campaign_video(keyframes, ref_bank, debug_dir)
+            else:
+                match_result = CampaignMatchResult(
+                    campaign_match=False,
+                    match_type="NO_MATCH",
+                    verdict="Irrelevant",
+                )
+        else:
+            # Image
+            match_result = match_campaign_image(filepath, ref_bank, debug_dir)
+
+        result_dict = match_result.to_dict()
+        result_dict["file"] = filepath
+        result_dict["filename"] = filename
+        results.append(result_dict)
+
+    # Summary
+    summary = {
+        "campaign_name": req.campaign_name,
+        "num_references": ref_bank.embeddings.shape[0] if ref_bank.is_ready else 0,
+        "reference_variance": round(ref_bank.variance, 4),
+        "num_targets": len(results),
+        "matches": sum(1 for r in results if r.get("campaign_match")),
+        "strong_matches": sum(1 for r in results if r.get("match_type") == "STRONG_MATCH"),
+        "possible_matches": sum(1 for r in results if r.get("match_type") == "POSSIBLE_MATCH"),
+        "rejections": sum(1 for r in results if r.get("match_type") == "NO_MATCH"),
+    }
+
+    return {"summary": summary, "results": results}
