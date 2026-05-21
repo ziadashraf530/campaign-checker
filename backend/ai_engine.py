@@ -315,6 +315,7 @@ def _build_brand_prompts(brand_name: str, aliases: list[str], context: str) -> l
             f"a sign that says {name}",
             f"the word {name} written on something",
             f"{name} branding",
+            
             f"a {name} product",
         ]
     return prompts

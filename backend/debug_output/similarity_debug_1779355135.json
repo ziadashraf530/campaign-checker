@@ -1,0 +1,37 @@
+{
+  "timestamp": 1779355135,
+  "type": "single_image",
+  "campaign_match": false,
+  "confidence": 0.4357,
+  "match_type": "NO_MATCH",
+  "top_similarity": 0.6892,
+  "average_similarity": 0.6296,
+  "best_reference": "OIP (3).webp",
+  "best_frame": "Screenshot 2026-02-16 121424.png",
+  "threshold_used": 0.86,
+  "reference_variance": 0.031,
+  "num_references": 18,
+  "num_frames": 1,
+  "processing_time_ms": 37439.9,
+  "stable_segments": [],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 1.0559,
+    "has_overlays": true,
+    "is_mobile_screenshot": false,
+    "has_subtitles": false,
+    "compression_level": 0.0,
+    "suggested_threshold_offset": -0.01,
+    "reasoning": "Social UI overlay elements detected"
+  }
+}

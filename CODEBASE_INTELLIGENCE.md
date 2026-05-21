@@ -13,16 +13,27 @@ campaign-checker/
 │   ├── siglip_engine.py            # SigLIP vision model manager & scoring math
 │   ├── video_utils.py              # Frame & keyframe sampling helpers
 │   ├── file_scanner.py             # Target folder scanner
+│   ├── rule_parser.py              # Regex-based rule parsing module
+│   ├── ocr_engine.py               # Local EasyOCR multilingual detector wrapper [NEW]
+│   ├── ocr_normalizer.py           # Arabic/English orthography normalization & cleaning pipeline [NEW]
+│   ├── promo_detector.py           # Commercial/promotional tone scanner
+│   ├── rule_evaluator.py           # Compliance criteria evaluator (multi-source fusion & severity deductions) [NEW]
+│   ├── compliance_engine.py        # Unified OCR & caption compliance orchestrator [NEW]
 │   ├── verify_siglip_engine.py     # Automated self-contained verification suite
+│   ├── test_compliance.py          # Unit tests for caption compliance engine
+│   ├── test_ocr_compliance.py      # Unit tests for multilingual OCR compliance engine [NEW]
+│   ├── test_api.py                 # Live API match & compliance verification script
 │   ├── requirements.txt            # Python dependencies list
+│   ├── brief_templates/            # Folder containing pre-configured JSON brief templates [NEW]
 │   └── temp_frames/                # Storage for active frame evaluations
 └── frontend/
     ├── index.html                  # HTML entry point (Google Fonts Inter)
     ├── package.json                # npm dependencies
     └── src/
-        ├── App.jsx                 # Visual UI dashboard
+        ├── App.jsx                 # Visual UI dashboard (with templates picker & OCR tags bubble overlays)
         ├── main.jsx                # React app launcher
         └── index.css               # Modern dark-mode layout & styling sheets
+
 ```
 
 ---
@@ -52,11 +63,35 @@ campaign-checker/
    ```
 
 ### 2.3 Automated Testing
+
+#### 1. Core Vision Engine Self-Tests
 Execute the zero-dependency self-test runner to ensure mathematical vector shapes, L2 normalizations, dynamic threshold calibration, and color alignments behave perfectly:
 ```bash
 cd backend
 python verify_siglip_engine.py
 ```
+
+#### 2. Caption Compliance Unit Tests
+Verify regex brief rules extraction, competitor filtering, and direct response promotional tone scanning:
+```bash
+cd backend
+python test_compliance.py
+```
+
+#### 3. OCR Multilingual Compliance Unit Tests
+Verify Arabic orthography normalization, duplicate token collapsing, severity-based score deductions, and positive brand whitelisting logic:
+```bash
+cd backend
+python test_ocr_compliance.py
+```
+
+#### 4. E2E API Integration & Match Tests
+Verify live visual few-shot matching fused with caption compliance analysis by spinning up a temporary sandboxed campaign:
+```bash
+cd backend
+python test_api.py
+```
+
 
 ---
 

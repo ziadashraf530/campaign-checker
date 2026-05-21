@@ -1,0 +1,38 @@
+{
+  "name": "KFC",
+  "caption": "Nothing beats the crunch of the new @KFC Chizza! Absolute weekend game changer. 🍗🔥 #KFCChizza",
+  "rules": "Must include mention: @KFC\nMust include hashtag: #KFCChizza\nDo not mention competitors in OCR\nIF OCR contains \"50% OFF\" THEN caption must contain \"#Ad\"\nRequire @KFC in caption OR OCR\nIf 3 warnings then FAIL",
+  "required_mentions": ["@KFC"],
+  "required_hashtags": ["#KFCChizza"],
+  "forbidden_terms": ["delivery codes"],
+  "promo_restrictions": ["avoid promotional tone"],
+  "severity_levels": {
+    "competitor": "CRITICAL",
+    "forbidden_term": "CRITICAL",
+    "required_mention": "CRITICAL",
+    "required_hashtag": "CRITICAL",
+    "promo_restrictions": "WARNING",
+    "warning_term": "WARNING"
+  },
+  "conditional_rules": [
+    {
+      "trigger": { "source": "ocr", "condition": "contains", "value": "50% OFF" },
+      "consequent": { "source": "caption", "condition": "contains", "value": "#Ad" },
+      "severity": "CRITICAL"
+    }
+  ],
+  "cross_source_rules": [
+    {
+      "rules": [
+        { "rule_type": "required_mention", "target": "@KFC", "source": "caption" },
+        { "rule_type": "required_mention", "target": "KFC", "source": "ocr" }
+      ],
+      "operator": "OR",
+      "severity": "CRITICAL",
+      "description": "Require brand mention in caption OR OCR"
+    }
+  ],
+  "severity_escalations": [
+    { "trigger": "warnings_count", "threshold": 3, "action": "FAIL" }
+  ]
+}

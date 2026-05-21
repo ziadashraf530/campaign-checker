@@ -1,5 +1,364 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
+import ReviewQueue from './review_queue.jsx'
+import MediaReviewModal from './media_review_modal.jsx'
+
+const t = {
+  en: {
+    title: "Campaign Checker",
+    subtitle: "Next-gen visual verification & campaign matching platform",
+    engineActive: "SigLIP v1.2 Engine Active",
+    tabWorkstation: "Workstation",
+    tabQueue: "QA Review Queue",
+    tabBatch: "Batch Ingestion",
+    controlCenter: "Control Center",
+    apiPort: "API Server Port",
+    siglipMatcher: "SigLIP Matcher",
+    legacyAnalyzer: "Legacy Analyzer",
+    refDir: "Reference Campaign Directory",
+    targetPath: "Target File or Folder Path",
+    campaignTag: "Campaign Tag / Name",
+    autoScrub: "Auto-Scrub OCR Overlay Blocks",
+    verifyCompliance: "Verify Compliance Text & Brief",
+    selectBrief: "Select Campaign Brief Template",
+    captionPlaceholder: "Insert post caption here...",
+    captionLabel: "Caption Text & Hashtags",
+    rulesPlaceholder: "Enter campaign rules (one per line)...",
+    rulesLabel: "Campaign Compliance Rules",
+    runEngine: "Run Matching Engine",
+    resultsTitle: "Visual Verification Results",
+    clearBtn: "Clear",
+    statusSummary: "Status Summary",
+    totalScanned: "Total Scanned",
+    matchesFound: "Matches Found",
+    avgConfidence: "Average Confidence",
+    avgVisualScore: "Average Visual Score",
+    complianceAvg: "Compliance Average",
+    originalMedia: "Original Media",
+    socialPlatform: "Social Media Platform",
+    verificationStatus: "Verification Category Status",
+    reviewerSignature: "Reviewer Signature (Identity)",
+    reviewNotes: "Review Notes / Audit Annotations",
+    ignoredUiText: "Ignored UI Text Elements",
+    subtitlesText: "Subtitles / Text Overlay",
+    complianceStatus: "Caption compliance status",
+    complianceRulesBreakdown: "Compliance Rule Details",
+    passedChecks: "Passed Checks",
+    violations: "Violations",
+    warnings: "Warnings",
+    batchTitle: "Batch Ingestion",
+    batchSubtitle: "Queue multiple campaign targets for background visual analysis without blocking the browser.",
+    liveBatchTelemetry: "Live Batch Telemetry",
+    launchAsyncBatch: "Launch Async Batch",
+    processingBatch: "Processing Batch...",
+    batchComplete: "Batch complete! Switch to",
+    batchCompleteToInspect: "to inspect results.",
+    referencesLoaded: "references loaded",
+    campaignMatchReport: "Campaign Match Report",
+    totalTargets: "Total Targets",
+    strongMatches: "Strong Matches",
+    possibleMatches: "Possible Matches",
+    rejections: "Rejections",
+    varianceInfo: "Reference bank variance: {variance}. Lower variance indicates highly consistent references (strict threshold).",
+    refSetQuality: "Reference Set Quality",
+    silhouetteScore: "Silhouette Cohesion Score",
+    intraSimMean: "Intra Similarity Mean",
+    intraSimStd: "Intra Similarity Std",
+    socialUiAnalytics: "Social UI Analytics",
+    distTelemetry: "Distribution Telemetry",
+    socialMediaLabel: "Social Media",
+    verticalFormat: "Vertical Format",
+    uiOverlays: "UI / Overlays",
+    screenshotsLabel: "Screenshots",
+    avgUiBoost: "Avg UI Boost",
+    detectedPlatforms: "Detected Platforms",
+    postCount: "post",
+    postsCount: "posts",
+    targetVerificationList: "Target Verification List",
+    aspect: "Aspect: ",
+    socialFormat: "Social Format",
+    overlay: "Overlay",
+    noise: "Noise: ",
+    offset: "Offset: ",
+    similarityMetrics: "Similarity Metrics",
+    overallVerdict: "Overall Match Verdict",
+    primaryBlendedScore: "Primary Blended Score",
+    maxSimilarityFound: "Max Similarity Found",
+    averageSimilarity: "Average Similarity",
+    thresholdApplied: "Threshold Applied",
+    framesEvaluated: "Frames Evaluated",
+    bestReferenceImage: "Best Reference Image",
+    computeTime: "Compute Time",
+    refMatchingBreakdown: "Reference Matching Breakdown",
+    brandConflictProximity: "Brand Conflict & Proximity",
+    competitorProximityIndex: "Competitor Proximity Index",
+    nearestCompetitor: "Nearest Competitor Asset: ",
+    decisionAmbiguityIndex: "Decision Ambiguity Index",
+    statusLabel: "Status: ",
+    ambiguousMatch: "AMBIGUOUS MATCH PATTERN",
+    highRetrievalMargin: "HIGH RETRIEVAL MARGIN",
+    diagnosticsLogs: "Diagnostic & Explainability Logs",
+    allDiagnosticsNominal: "All Retrieval Diagnostics Nominal:",
+    nominalDesc: "Verification metrics confirmed clear decision boundaries. No competitor distractor encroachment detected.",
+    plattCalibration: "Platt scaling calibration",
+    calibratedProb: "Calibrated Probability",
+    rawMaxSim: "Raw Max Similarity",
+    rawAvgSim: "Raw Avg Similarity",
+    activeThreshold: "Active Threshold",
+    decisionMargin: "Decision Margin",
+    temporalStabilityInfo: "Temporal stability info",
+    temporalContinuityStrength: "Temporal Continuity Strength",
+    stableSegmentsCount: "Stable Segments Count",
+    bestMatchFrameId: "Best Match Frame ID",
+    diagnosticsStatus: "Diagnostics Status",
+    warningsFlagged: "WARNINGS FLAGGED",
+    nominal: "NOMINAL",
+    semanticCluster: "Semantic Cluster & Adjustments",
+    dominantCluster: "Dominant Cluster Group",
+    logoRefs: "Logo References",
+    drinkRefs: "Drink References",
+    productRefs: "Product References",
+    storeRefs: "Store References",
+    globalCentroid: "Global Centroid",
+    clusterCentroidSim: "Cluster Centroid Similarity",
+    socialUiAdjustment: "Social UI Adjustment",
+    brandingProductBoost: "Branding Product Boost",
+    calibrationAdjustments: "Calibration Adjustments",
+    activeBoosts: "ACTIVE BOOSTS",
+    modelDecisionChain: "Model Decision Reasoning Chain",
+    stepPrefix: "Step ",
+    temporalTimelineChart: "Temporal Verification & Retrieval Timeline",
+    thrLabel: "THR: ",
+    frameLabel: "Frame: ",
+    rawScoreLabel: "Raw Score: ",
+    smoothedLabel: "Smoothed: ",
+    competitorProximityLabel: "Competitor Proximity: ",
+    bestRefLabel: "Best Reference: ",
+    rawFrameScore: "Raw Frame Score",
+    smoothedMatchScore: "Smoothed Match Score",
+    competitorProximityLabelLegend: "Competitor Proximity",
+    matchThresholdLabelLegend: "Match Threshold",
+    segmentLabel: "Segment ",
+    extractedFrameAnalysis: "Extracted Frame Analysis",
+    ocrComplianceTitle: "OCR & Caption Compliance Analysis",
+    complianceGrade: "Compliance Grade",
+    violationsPts: "Violations (-20 pts each)",
+    critical: "CRITICAL",
+    ocr: "OCR",
+    caption: "Caption",
+    both: "Both",
+    warningsPts: "Warnings (-10 pts each)",
+    warning: "WARNING",
+    info: "INFO",
+    extractedOcrText: "Extracted OCR Overlay Text",
+    ocrDiagnosticLogs: "OCR Diagnostic Logs & Reasoning Chain",
+    clickToExpand: "Click to Expand / Collapse",
+    captionComplianceNotEvaluated: "Caption Compliance Not Evaluated:",
+    captionComplianceNotEvaluatedDesc: "Caption analysis is only performed for successful campaign matching posts when caption text and brief compliance rules are provided.",
+    legacyResultsHeader: "Legacy Analysis Results",
+    post: "Post",
+    platform: "Platform",
+    complete: "Complete",
+    failed: "Failed",
+    referenceCampaignDir: "Reference Campaign Directory",
+    targetMediaFolderOrFile: "Target Media Folder or File",
+    campaignTagLabel: "Campaign Tag",
+    apiPortLabel: "API Port",
+    captionTextLabel: "Caption Text",
+    campaignRulesLabel: "Campaign Compliance Rules",
+    processingBatchLabel: "Processing Batch...",
+    launchAsyncBatchLabel: "Launch Async Batch",
+    liveTelemetryLabel: "Live Batch Telemetry",
+    batchCompleteLabel: "Batch complete! Switch to ",
+    qaReviewQueue: "QA Review Queue",
+    toInspectResults: " to inspect results.",
+    strongMatch: "Strong Match",
+    probableMatch: "Probable Match",
+    possibleMatch: "Possible Match",
+    noMatch: "No Match",
+    compliancePass: "Caption: PASS",
+    compliancePartial: "Caption: PARTIAL",
+    complianceFail: "Caption: FAIL",
+    socialRatio: "Social Ratio"
+  },
+  ar: {
+    title: "مُحقق الحملات",
+    subtitle: "منصة تحقق بصري وتطابق حملات متطورة وممتازة",
+    engineActive: "محرك السِيجْ-لِيبْ v1.2 شغال ونشط",
+    tabWorkstation: "منصة العمل اليدوي",
+    tabQueue: "طابور مراجعة الجودة",
+    tabBatch: "الاستيراد بالدفعة",
+    controlCenter: "مركز التحكم والضبط",
+    apiPort: "منفذ خادم الـ API",
+    siglipMatcher: "مطابق SigLIP الذكي",
+    legacyAnalyzer: "محلل الإرث القديم",
+    refDir: "مجلد الحملة المرجعية",
+    targetPath: "مسار ملف أو مجلد الهدف",
+    campaignTag: "علامة / اسم الحملة",
+    autoScrub: "مسح وتصفية تراكبات الـ OCR تلقائياً",
+    verifyCompliance: "التحقق من نصوص الامتثال وشروط الحملة",
+    selectBrief: "اختر قالب شروط الحملة الجاهز",
+    captionPlaceholder: "أدخل النص المنشور هنا...",
+    captionLabel: "نص الوصف والهاشتاجات المرافقة",
+    rulesPlaceholder: "أدخل الشروط (شرط واحد في كل سطر)...",
+    rulesLabel: "شروط وقواعد امتثال الحملة",
+    runEngine: "تشغيل محرك التطابق البصري",
+    resultsTitle: "نتائج التحقق البصري المكتشفة",
+    clearBtn: "مسح الكل",
+    statusSummary: "ملخص حالة الفحص البصري",
+    totalScanned: "إجمالي المفحوص",
+    matchesFound: "التطابقات المكتشفة",
+    avgConfidence: "متوسط نسبة الثقة",
+    avgVisualScore: "متوسط النتيجة البصرية",
+    complianceAvg: "متوسط امتثال النصوص",
+    originalMedia: "المادة الأصلية المعروضة",
+    socialPlatform: "منصة التواصل المكتشفة",
+    verificationStatus: "حالة فئة التحقق الحالية",
+    reviewerSignature: "توقيع المراجع البشري (الهوية)",
+    reviewNotes: "ملاحظات وتجاوزات مراجعة الجودة",
+    ignoredUiText: "عناصر واجهة المستخدم المهملة (UI)",
+    subtitlesText: "الترجمات وتراكب النصوص المكتشفة",
+    complianceStatus: "حالة امتثال النص والوصف المرافق",
+    complianceRulesBreakdown: "تفاصيل قواعد الامتثال وشروطه",
+    passedChecks: "الفحوصات المقبولة (ناجح)",
+    violations: "المخالفات المكتشفة (راسب)",
+    warnings: "التحذيرات الصادرة",
+    batchTitle: "الاستيراد ومعالجة الدفعات",
+    batchSubtitle: "ضع أهداف حملات متعددة في الطابور للتحليل البصري في الخلفية بدون حجب المتصفح علطول.",
+    liveBatchTelemetry: "بيانات القياس عن بُعد للدفعات الحية في الخلفية",
+    launchAsyncBatch: "إطلاق الدفعة غير المتزامنة",
+    processingBatch: "جاري معالجة الدفعة دلوقتي...",
+    batchComplete: "الدفعة خلصت وجاهزة! انقل على",
+    batchCompleteToInspect: "علشان تشوف وتراجع النتائج.",
+    referencesLoaded: "مراجع تم تحميلها",
+    campaignMatchReport: "تقرير تطابق الحملة البصري",
+    totalTargets: "إجمالي الأهداف المفحوصة",
+    strongMatches: "تطابقات قوية (مية مية)",
+    possibleMatches: "تطابقات محتملة (على الحركرك)",
+    rejections: "مرفوضات (مرفوض خالص)",
+    varianceInfo: "تباين المجموعات المرجعية: {variance}. التباين المنخفض يعني مرجعيات متناسقة جداً وصارمة.",
+    refSetQuality: "جودة المجموعات المرجعية",
+    silhouetteScore: "معامل تماسك الصورة الظلية (Silhouette)",
+    intraSimMean: "متوسط التشابه الداخلي",
+    intraSimStd: "الانحراف المعياري للتشابه الداخلي",
+    socialUiAnalytics: "تحليلات واجهة شبكات التواصل",
+    distTelemetry: "بيانات توزيع واجهات العرض",
+    socialMediaLabel: "شبكات اجتماعية",
+    verticalFormat: "تنسيق رأسي (9:16)",
+    uiOverlays: "عناصر واجهة وتراكبات",
+    screenshotsLabel: "لقطات شاشة",
+    avgUiBoost: "متوسط زيادة عناصر الواجهة",
+    detectedPlatforms: "المنصات المكتشفة",
+    postCount: "منشور واحد",
+    postsCount: "منشورات",
+    targetVerificationList: "قائمة التحقق للأهداف البصرية",
+    aspect: "الأبعاد: ",
+    socialFormat: "تنسيق شبكة",
+    overlay: "تراكب",
+    noise: "الضوضاء: ",
+    offset: "إزاحة: ",
+    similarityMetrics: "مؤشرات التشابه البصري",
+    overallVerdict: "قرار التطابق البصري النهائي",
+    primaryBlendedScore: "النتيجة المختلطة الأساسية",
+    maxSimilarityFound: "أعلى نسبة تشابه مكتشفة",
+    averageSimilarity: "متوسط نسبة التشابه",
+    thresholdApplied: "الحد الأدنى المطبق",
+    framesEvaluated: "عدد اللقطات التي تم فحصها",
+    bestReferenceImage: "أفضل صورة مرجعية مطابقة",
+    computeTime: "زمن الفحص والمعالجة",
+    refMatchingBreakdown: "تفاصيل مطابقة الصور المرجعية",
+    brandConflictProximity: "تداخل العلامات وقرب المنافسين",
+    competitorProximityIndex: "مؤشر مدى قرب شعار المنافس",
+    nearestCompetitor: "أقرب أصل منافس مكتشف: ",
+    decisionAmbiguityIndex: "مؤشر غموض القرار البصري",
+    statusLabel: "الحالة: ",
+    ambiguousMatch: "نمط تطابق غامض وغير واضح",
+    highRetrievalMargin: "هامش استرجاع بصري ممتاز وآمن",
+    diagnosticsLogs: "سجلات التشخيص وتفسير القرارات",
+    allDiagnosticsNominal: "كل تشخيصات الاسترجاع البصري سليمة وممتازة:",
+    nominalDesc: "مقاييس التحقق أكدت وجود حدود قرار واضحة وجلية. لم يتم الكشف عن أي تعدي أو تشويش من المنافسين.",
+    plattCalibration: "معايرة مقياس بلات (الاحتمالية الموزونة)",
+    calibratedProb: "الاحتمالية الموزونة المعايرة",
+    rawMaxSim: "التشابه الأقصى الخام",
+    rawAvgSim: "التشابه المتوسط الخام",
+    activeThreshold: "الحد النشط المعتمد",
+    decisionMargin: "هامش القرار البصري",
+    temporalStabilityInfo: "بيانات الاستقرار الزمني للفيديو",
+    temporalContinuityStrength: "قوة الاستمرارية الزمنية للعلامة",
+    stableSegmentsCount: "عدد الأجزاء المستقرة المكتشفة",
+    bestMatchFrameId: "رقم اللقطة الأكثر تطابقاً",
+    diagnosticsStatus: "حالة الفحوصات والتشخيصات",
+    warningsFlagged: "تنبيهات وتحذيرات صادرة",
+    nominal: "سليم وطبيعي (تمام التمام)",
+    semanticCluster: "مجموعات المعاني والتعديلات الموائمة",
+    dominantCluster: "مجموعة الفئة المهيمنة",
+    logoRefs: "مراجع الشعارات",
+    drinkRefs: "مراجع المشروبات",
+    productRefs: "مراجع المنتجات البصرية",
+    storeRefs: "مراجع المتاجر والفروع",
+    globalCentroid: "المركز العام للمجموعة",
+    clusterCentroidSim: "تشابه مركز الفئة البصرية",
+    socialUiAdjustment: "تعديل واجهة شبكات التواصل",
+    brandingProductBoost: "زيادة العلامة البصرية للمنتج",
+    calibrationAdjustments: "تعديلات المعايرة المطبقة",
+    activeBoosts: "زيادات ونشاطات مطبقة",
+    modelDecisionChain: "سلسلة تفسير منطق قرار النموذج",
+    stepPrefix: "خطوة ",
+    temporalTimelineChart: "خط زمني للاسترجاع والتحقق البصري",
+    thrLabel: "الحد: ",
+    frameLabel: "اللقطة: ",
+    rawScoreLabel: "النتيجة الخام: ",
+    smoothedLabel: "الموزونة: ",
+    competitorProximityLabel: "قرب المنافس: ",
+    bestRefLabel: "أفضل مرجع: ",
+    rawFrameScore: "النتيجة الخام للقطة",
+    smoothedMatchScore: "نتيجة التطابق الموزون",
+    competitorProximityLabelLegend: "قرب العلامة المنافسة",
+    matchThresholdLabelLegend: "حد القبول المطبق",
+    segmentLabel: "القسم ",
+    extractedFrameAnalysis: "تحليل اللقطات المستخرجة بالتفصيل",
+    ocrComplianceTitle: "تحليل امتثال نصوص الـ OCR والوصف المنشور",
+    complianceGrade: "درجة الامتثال والالتزام",
+    violationsPts: "المخالفات الصارخة (-20 نقطة لكل منها)",
+    critical: "صارم وعالي الأهمية",
+    ocr: "تراكب بصري",
+    caption: "نص منشور",
+    both: "كلاهما",
+    warningsPts: "تحذيرات قابلة للتفادي (-10 نقاط لكل منها)",
+    warning: "تحذير",
+    info: "معلوماتية",
+    extractedOcrText: "نصوص تراكب الـ OCR المستخرجة",
+    ocrDiagnosticLogs: "سجلات تشخيص الـ OCR وسلسلة المعالجة",
+    clickToExpand: "انقر للتوسيع / الإغلاق اليدوي",
+    captionComplianceNotEvaluated: "لم يتم فحص وامتثال النص والهاشتاجات بعد",
+    captionComplianceNotEvaluatedDesc: "يتم إجراء تحليل امتثال النصوص فقط للمنشورات المطابقة بصرياً بنجاح عندما تتوفر نصوص النشر وشروط وقواعد الحملة المطلوبة.",
+    legacyResultsHeader: "نتائج التحليل البصري القديم المكتشفة",
+    post: "منشور",
+    platform: "المنصة المكتشفة",
+    complete: "مكتمل بنجاح",
+    failed: "فشل في المعالجة",
+    referenceCampaignDir: "مجلد الحملة المرجعية المعتمدة",
+    targetMediaFolderOrFile: "ملف أو مجلد محتوى الهدف البصري",
+    campaignTagLabel: "علامة / اسم الحملة المعتمد",
+    apiPortLabel: "منفذ خادم الـ API للمطابقة",
+    captionTextLabel: "نص الوصف والهاشتاجات المرفقة",
+    campaignRulesLabel: "شروط وقواعد امتثال الحملة البصرية",
+    processingBatchLabel: "جاري معالجة الدفعة دلوقتي...",
+    launchAsyncBatchLabel: "إطلاق الدفعة غير المتزامنة",
+    liveTelemetryLabel: "لوحة قياس الدفعة الحية بالخلفية",
+    batchCompleteLabel: "خلصت الدفعة بالكامل! انقل على ",
+    qaReviewQueue: "طابور مراجعة الجودة والالتزام",
+    toInspectResults: " علشان تشوف وتراجع النتائج اللي طلعت.",
+    strongMatch: "تطابق قوي (مية مية)",
+    probableMatch: "تطابق محتمل وقوي",
+    possibleMatch: "تطابق محتمل (على الحركرك)",
+    noMatch: "مرفوض خالص (لا تطابق)",
+    compliancePass: "الوصف: مقبول (تمام)",
+    compliancePartial: "الوصف: مقبول جزئياً",
+    complianceFail: "الوصف: مخالف (مرفوض)",
+    socialRatio: "نسبة منصات التواصل"
+  }
+};
 
 export default function App() {
   const [mode, setMode] = useState('siglip') // 'siglip' or 'legacy'
@@ -22,6 +381,30 @@ export default function App() {
   const [legacyResults, setLegacyResults] = useState([])
   const [expandedCards, setExpandedCards] = useState({})
   const [apiPort, setApiPort] = useState('8001')
+  const [siglipCaption, setSiglipCaption] = useState('Best coffee ever ☕ Try Starbucks today! #StarbucksPartner @Starbucks')
+  const [siglipRules, setSiglipRules] = useState('- must mention @Starbucks\n- must include #StarbucksPartner\n- no competitor mentions\n- avoid overly promotional wording')
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplate, setSelectedTemplate] = useState('')
+
+  // ── QA Workstation & Review Queue workflow state ──────────────
+  const [mainTab, setMainTab] = useState('workstation') // 'workstation' | 'queue' | 'batch'
+  const [selectedSession, setSelectedSession] = useState(null)
+  const [refreshQueueTrigger, setRefreshQueueTrigger] = useState(0)
+  const [asyncTask, setAsyncTask] = useState(null)
+  const pollingRef = useRef(null)
+  const [lang, setLang] = useState('en')
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await axios.get(`http://127.0.0.1:${apiPort}/brief-templates/`)
+        setTemplates(res.data || [])
+      } catch (err) {
+        console.error("Failed to fetch templates:", err)
+      }
+    }
+    fetchTemplates()
+  }, [apiPort])
 
   const toggleExpandCard = (index) => {
     setExpandedCards(prev => ({
@@ -50,7 +433,9 @@ export default function App() {
         reference_path: refPath,
         target_path: targetPath,
         campaign_name: campaignName,
-        debug: siglipDebug
+        debug: siglipDebug,
+        caption: siglipCaption,
+        rules: siglipRules
       }
 
       const res = await axios.post(`http://127.0.0.1:${apiPort}/campaign-match/`, payload)
@@ -106,6 +491,62 @@ export default function App() {
     }
   }
 
+  // ── Async / Batch matching with real-time telemetry polling ────────
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }
+
+  const runSiglipMatchAsync = async () => {
+    const refPath = siglipRefPathRef.current ? siglipRefPathRef.current.value.trim() : ''
+    const targetPath = siglipTargetPathRef.current ? siglipTargetPathRef.current.value.trim() : ''
+    const campaignName = siglipCampaignNameRef.current ? siglipCampaignNameRef.current.value.trim() : 'campaign'
+
+    if (!refPath || !targetPath) {
+      setError('Please provide both the reference images folder and target file/folder path.')
+      return
+    }
+
+    setError(null)
+    stopPolling()
+
+    try {
+      const payload = {
+        reference_path: refPath,
+        target_path: targetPath,
+        campaign_name: campaignName,
+        debug: siglipDebug,
+        caption: siglipCaption,
+        rules: siglipRules
+      }
+      const res = await axios.post(`http://127.0.0.1:${apiPort}/campaign-match/async/`, payload)
+      const taskId = res.data.task_id
+      setAsyncTask({ task_id: taskId, polling: true, progress: 0, stage: 'Queuing batch...', status: 'INITIALIZING' })
+
+      pollingRef.current = setInterval(async () => {
+        try {
+          const prog = await axios.get(`http://127.0.0.1:${apiPort}/campaign-match/progress/${taskId}`)
+          const d = prog.data
+          setAsyncTask(prev => ({ ...prev, progress: d.progress, stage: d.stage, status: d.status }))
+          if (d.status === 'COMPLETED' || d.status === 'FAILED') {
+            stopPolling()
+            setAsyncTask(prev => ({ ...prev, polling: false }))
+            setRefreshQueueTrigger(p => p + 1)
+          }
+        } catch (pollErr) {
+          stopPolling()
+        }
+      }, 1500)
+    } catch (err) {
+      setError('Async batch failed: ' + (err.response?.data?.detail || err.message))
+    }
+  }
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => { return () => stopPolling() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Determine file type icon
   const getFileTypeIcon = (filename) => {
     if (!filename) return <i className="fa-solid fa-file file-type-icon"></i>
@@ -120,13 +561,27 @@ export default function App() {
   const renderVerdictBadge = (matchType) => {
     switch (matchType) {
       case 'STRONG_MATCH':
-        return <span className="badge strong"><i className="fa-solid fa-circle-check"></i> Strong Match</span>
+        return <span className="badge strong"><i className="fa-solid fa-circle-check"></i> {labels.strongMatch}</span>
       case 'PROBABLE_STRONG_MATCH':
-        return <span className="badge probable"><i className="fa-solid fa-circle-check"></i> Probable Match</span>
+        return <span className="badge probable"><i className="fa-solid fa-circle-check"></i> {labels.probableMatch}</span>
       case 'POSSIBLE_MATCH':
-        return <span className="badge possible"><i className="fa-solid fa-circle-question"></i> Possible Match</span>
+        return <span className="badge possible"><i className="fa-solid fa-circle-question"></i> {labels.possibleMatch}</span>
       default:
-        return <span className="badge none"><i className="fa-solid fa-circle-xmark"></i> No Match</span>
+        return <span className="badge none"><i className="fa-solid fa-circle-xmark"></i> {labels.noMatch}</span>
+    }
+  }
+
+  // Format compliance display for results
+  const renderComplianceBadge = (status) => {
+    switch (status) {
+      case 'PASS':
+        return <span className="badge-compliance pass"><i className="fa-solid fa-circle-check"></i> {labels.compliancePass}</span>
+      case 'PARTIAL':
+        return <span className="badge-compliance partial"><i className="fa-solid fa-triangle-exclamation"></i> {labels.compliancePartial}</span>
+      case 'FAIL':
+        return <span className="badge-compliance fail"><i className="fa-solid fa-circle-xmark"></i> {labels.complianceFail}</span>
+      default:
+        return null;
     }
   }
 
@@ -138,29 +593,74 @@ export default function App() {
     return 'none';
   }
 
+  const labels = t[lang] || t.en;
+
   return (
-    <div className="app-container">
+    <div className={`app-container ${lang === 'ar' ? 'rtl' : ''}`}>
       {/* Top Header */}
       <header>
         <div className="logo-section">
-          <h1><i className="fa-solid fa-bolt-lightning"></i> Campaign Checker</h1>
-          <p>Next-gen visual verification & campaign matching platform</p>
+          <h1><i className="fa-solid fa-bolt-lightning"></i> {labels.title}</h1>
+          <p>{labels.subtitle}</p>
         </div>
-        <div className="engine-badge">
-          <span></span> SigLIP v1.2 Engine Active
+        <div className="header-controls">
+          <div className="lang-switcher">
+            <button 
+              className={`lang-btn ${lang === 'en' ? 'active' : ''}`} 
+              onClick={() => setLang('en')}
+            >
+              English
+            </button>
+            <button 
+              className={`lang-btn ${lang === 'ar' ? 'active' : ''}`} 
+              onClick={() => setLang('ar')}
+              style={{ fontFamily: 'Cairo, Tajawal, sans-serif' }}
+            >
+              مصري
+            </button>
+          </div>
+          <div className="engine-badge">
+            <span></span> {labels.engineActive}
+          </div>
         </div>
       </header>
 
-      {/* Main Grid: Control Panel (Left) & Results Display (Right) */}
+      {/* ── Main Navigation Tabs ───────────────────────────────────── */}
+      <nav className="main-tabs-nav">
+        <button
+          id="tab-workstation"
+          className={`main-tab-btn ${mainTab === 'workstation' ? 'active' : ''}`}
+          onClick={() => setMainTab('workstation')}
+        >
+          <i className="fa-solid fa-wand-magic-sparkles"></i> {labels.tabWorkstation}
+        </button>
+        <button
+          id="tab-queue"
+          className={`main-tab-btn ${mainTab === 'queue' ? 'active' : ''}`}
+          onClick={() => setMainTab('queue')}
+        >
+          <i className="fa-solid fa-list-check"></i> {labels.tabQueue}
+        </button>
+        <button
+          id="tab-batch"
+          className={`main-tab-btn ${mainTab === 'batch' ? 'active' : ''}`}
+          onClick={() => setMainTab('batch')}
+        >
+          <i className="fa-solid fa-layer-group"></i> {labels.tabBatch}
+        </button>
+      </nav>
+
+      {/* ── WORKSTATION DASHBOARD TAB ────────────────────────────── */}
+      {mainTab === 'workstation' && (
       <main className="dashboard-grid">
         
         {/* Left Side: Parameters / Control Panel */}
         <section className="panel-card">
-          <h2><i className="fa-solid fa-sliders"></i> Control Center</h2>
+          <h2><i className="fa-solid fa-sliders"></i> {labels.controlCenter}</h2>
 
           {/* API Server Port Config */}
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-            <label>API Server Port</label>
+            <label>{labels.apiPort}</label>
             <div className="input-wrapper">
               <input 
                 type="text"
@@ -179,13 +679,13 @@ export default function App() {
               className={`mode-btn ${mode === 'siglip' ? 'active' : ''}`}
               onClick={() => { setMode('siglip'); setError(null); }}
             >
-              <i className="fa-solid fa-fingerprint"></i> SigLIP Matcher
+              <i className="fa-solid fa-fingerprint"></i> {labels.siglipMatcher}
             </button>
             <button 
               className={`mode-btn ${mode === 'legacy' ? 'active' : ''}`}
               onClick={() => { setMode('legacy'); setError(null); }}
             >
-              <i className="fa-solid fa-magnifying-glass"></i> Legacy Analyzer
+              <i className="fa-solid fa-magnifying-glass"></i> {labels.legacyAnalyzer}
             </button>
           </div>
 
@@ -193,7 +693,7 @@ export default function App() {
           {mode === 'siglip' ? (
             <div>
               <div className="form-group">
-                <label>Reference Campaign Directory</label>
+                <label>{labels.refDir}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipRefPathRef}
@@ -206,7 +706,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Target File or Folder Path</label>
+                <label>{labels.targetPath}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipTargetPathRef}
@@ -219,7 +719,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Campaign Tag / Name</label>
+                <label>{labels.campaignTag}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipCampaignNameRef}
@@ -231,6 +731,55 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="form-group">
+                <label><i className="fa-solid fa-file-lines" style={{ marginRight: '0.35rem', color: 'var(--accent-light)' }}></i>{labels.selectBrief}</label>
+                <div className="input-wrapper">
+                  <select
+                    className="form-control template-selector"
+                    value={selectedTemplate}
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setSelectedTemplate(name)
+                      if (name) {
+                        const tpl = templates.find(t => t.name === name)
+                        if (tpl) {
+                          setSiglipCaption(tpl.caption || '')
+                          setSiglipRules(tpl.rules || '')
+                        }
+                      }
+                    }}
+                  >
+                    <option value="">{lang === 'ar' ? '— اختر شروط جاهزة للحملة —' : '— Select a predefined brief —'}</option>
+                    {templates.map(t => (
+                      <option key={t.name} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                  <i className="fa-solid fa-clipboard-list"></i>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>{labels.captionLabel}</label>
+                <textarea 
+                  className="form-control"
+                  style={{ height: '70px', padding: '0.75rem 1rem', resize: 'vertical' }}
+                  placeholder={labels.captionPlaceholder}
+                  value={siglipCaption}
+                  onChange={(e) => setSiglipCaption(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>{labels.rulesLabel}</label>
+                <textarea 
+                  className="form-control"
+                  style={{ height: '90px', padding: '0.75rem 1rem', resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                  placeholder={labels.rulesPlaceholder}
+                  value={siglipRules}
+                  onChange={(e) => setSiglipRules(e.target.value)}
+                />
+              </div>
+
               <label className="checkbox-group">
                 <input 
                   type="checkbox"
@@ -238,7 +787,7 @@ export default function App() {
                   onChange={(e) => setSiglipDebug(e.target.checked)}
                 />
                 <div className="custom-checkbox"></div>
-                <span>Export debug files to backend</span>
+                <span>{lang === 'ar' ? 'تصدير ملفات التشخيص للباك إند' : 'Export debug files to backend'}</span>
               </label>
 
               <button 
@@ -248,11 +797,11 @@ export default function App() {
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing...
+                    <i className="fa-solid fa-circle-notch fa-spin"></i> {lang === 'ar' ? 'جاري التحليل والتدقيق البصري...' : 'Analyzing...'}
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> Verify Campaign
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> {labels.runEngine}
                   </>
                 )}
               </button>
@@ -260,7 +809,7 @@ export default function App() {
           ) : (
             <div>
               <div className="form-group">
-                <label>Brand Name to Search</label>
+                <label>{lang === 'ar' ? 'اسم الماركة للبحث عنها' : 'Brand Name to Search'}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyBrandRef}
@@ -273,7 +822,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Target File or Folder (Optional)</label>
+                <label>{lang === 'ar' ? 'الملف أو المجلد المستهدف (اختياري)' : 'Target File or Folder (Optional)'}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyTargetPathRef}
@@ -286,7 +835,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Reference Logos Path (Optional)</label>
+                <label>{lang === 'ar' ? 'مسار الشعارات المرجعية (اختياري)' : 'Reference Logos Path (Optional)'}</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyRefPathRef}
@@ -305,11 +854,11 @@ export default function App() {
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i> Scanning Logos...
+                    <i className="fa-solid fa-circle-notch fa-spin"></i> {lang === 'ar' ? 'جاري فحص الشعارات المكتشفة...' : 'Scanning Logos...'}
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-search"></i> Run Logo Analysis
+                    <i className="fa-solid fa-search"></i> {lang === 'ar' ? 'تشغيل تحليل الشعارات' : 'Run Logo Analysis'}
                   </>
                 )}
               </button>
@@ -331,8 +880,8 @@ export default function App() {
           {loading && (
             <div className="loading-panel">
               <div className="loading-spinner"></div>
-              <h3>AI Engine In Progress</h3>
-              <p>Extracting keyframes, generating SigLIP embeddings, and computing multi-factor cosine similarities...</p>
+              <h3>{lang === 'ar' ? 'جاري تشغيل محرك الذكاء الاصطناعي...' : 'AI Engine In Progress'}</h3>
+              <p>{lang === 'ar' ? 'جاري استخراج لقطات الفيديو، توليد تضمينات SigLIP البصرية، وحساب جيب تمام التشابه للميزات المتعددة...' : 'Extracting keyframes, generating SigLIP embeddings, and computing multi-factor cosine similarities...'}</p>
             </div>
           )}
 
@@ -340,49 +889,57 @@ export default function App() {
           {!loading && !siglipData && legacyResults.length === 0 && (
             <div className="empty-state">
               <i className="fa-solid fa-robot empty-state-icon"></i>
-              <h3>Ready for Verification</h3>
-              <p>Configure your reference campaign directory and targets in the Control Center, then execute verification to receive structured visual reports.</p>
+              <h3>{lang === 'ar' ? 'جاهز للتحقق والتدقيق البصري' : 'Ready for Verification'}</h3>
+              <p>{lang === 'ar' ? 'اضبط المجلد المرجعي والأهداف في مركز التحكم والضبط، ثم اضغط تشغيل للحصول على نتائج التحليل والتقارير الموثقة.' : 'Configure your reference campaign directory and targets in the Control Center, then execute verification to receive structured visual reports.'}</p>
             </div>
           )}
 
           {/* State 3: SigLIP Results Display */}
           {!loading && siglipData && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              
               {/* Summary Metrics Card */}
               <div className="summary-card">
                 <div className="summary-header">
                   <div className="summary-title">
-                    <h3>Campaign Match Report</h3>
-                    <span>{siglipData.summary?.campaign_name || 'Verification'}</span>
+                    <h3>{labels.campaignMatchReport}</h3>
+                    <span>{siglipData.summary?.campaign_name || (lang === 'ar' ? 'تحقق وفحص' : 'Verification')}</span>
                   </div>
                   <div className="engine-badge" style={{ borderColor: 'var(--accent-muted)' }}>
-                    {siglipData.summary?.num_references} references loaded
+                    {siglipData.summary?.num_references} {labels.referencesLoaded}
                   </div>
                 </div>
 
                 <div className="summary-stats">
                   <div className="stat-item">
                     <div className="stat-val accent">{siglipData.summary?.num_targets}</div>
-                    <div className="stat-label">Total Targets</div>
+                    <div className="stat-label">{labels.totalTargets}</div>
                   </div>
                   <div className="stat-item">
                     <div className="stat-val strong">{siglipData.summary?.strong_matches}</div>
-                    <div className="stat-label">Strong Matches</div>
+                    <div className="stat-label">{labels.strongMatches}</div>
                   </div>
                   <div className="stat-item">
                     <div className="stat-val possible">{siglipData.summary?.possible_matches}</div>
-                    <div className="stat-label">Possible Matches</div>
+                    <div className="stat-label">{labels.possibleMatches}</div>
                   </div>
                   <div className="stat-item">
                     <div className="stat-val none">{siglipData.summary?.rejections}</div>
-                    <div className="stat-label">Rejections</div>
+                    <div className="stat-label">{labels.rejections}</div>
                   </div>
                 </div>
 
                 <div className="info-row">
                   <i className="fa-solid fa-circle-info"></i>
-                  <span>Reference bank variance: <strong>{siglipData.summary?.reference_variance}</strong>. Lower variance indicates highly consistent references (strict threshold).</span>
+                  <span>
+                    {(() => {
+                      const parts = labels.varianceInfo.split('{variance}');
+                      return (
+                        <>
+                          {parts[0]}<strong>{siglipData.summary?.reference_variance}</strong>{parts[1]}
+                        </>
+                      );
+                    })()}
+                  </span>
                 </div>
               </div>
 
@@ -390,14 +947,14 @@ export default function App() {
               {siglipData.summary?.cohesion_metrics && (
                 <div className="cohesion-panel">
                   <div className="cohesion-header">
-                    <div className="cohesion-title"><i className="fa-solid fa-gem"></i> Reference Set Quality</div>
+                    <div className="cohesion-title"><i className="fa-solid fa-gem"></i> {labels.refSetQuality}</div>
                     <span className={`cohesion-quality-badge ${siglipData.summary.cohesion_metrics.cluster_quality?.toLowerCase()}`}>
                       {siglipData.summary.cohesion_metrics.cluster_quality}
                     </span>
                   </div>
                   <div className="cohesion-bar-wrapper">
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      <span>Silhouette Cohesion Score</span>
+                      <span>{labels.silhouetteScore}</span>
                       <span className="mono">{Math.round(siglipData.summary.cohesion_metrics.silhouette_score * 100)}%</span>
                     </div>
                     <div className="cohesion-bar-track">
@@ -406,14 +963,15 @@ export default function App() {
                   </div>
                   <div className="calibration-grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: '0.5rem', borderTop: 'none', paddingTop: '0' }}>
                     <div className="calibration-stat-row" style={{ borderBottom: 'none' }}>
-                      <span className="calibration-stat-label" style={{ fontSize: '0.75rem' }}>Intra Similarity Mean</span>
+                      <span className="calibration-stat-label" style={{ fontSize: '0.75rem' }}>{labels.intraSimMean}</span>
                       <span className="calibration-stat-val" style={{ fontSize: '0.75rem' }}>{siglipData.summary.cohesion_metrics.intra_similarity_mean?.toFixed(4)}</span>
                     </div>
                     <div className="calibration-stat-row" style={{ borderBottom: 'none' }}>
-                      <span className="calibration-stat-label" style={{ fontSize: '0.75rem' }}>Intra Similarity Std</span>
+                      <span className="calibration-stat-label" style={{ fontSize: '0.75rem' }}>{labels.intraSimStd}</span>
                       <span className="calibration-stat-val" style={{ fontSize: '0.75rem' }}>{siglipData.summary.cohesion_metrics.intra_similarity_std?.toFixed(4)}</span>
                     </div>
                   </div>
+
                   {siglipData.summary.cohesion_metrics.recommendations && (
                     <div className="cohesion-recommendations">
                       {siglipData.summary.cohesion_metrics.recommendations.map((rec, rIdx) => (
@@ -432,11 +990,11 @@ export default function App() {
                 <div className="summary-card" style={{ background: 'linear-gradient(135deg, hsl(230, 20%, 11%) 0%, hsl(230, 20%, 8%) 100%)' }}>
                   <div className="summary-header">
                     <div className="summary-title">
-                      <h3><i className="fa-solid fa-share-nodes" style={{ color: 'var(--accent-light)' }}></i> Social UI Analytics</h3>
-                      <span>Distribution Telemetry</span>
+                      <h3><i className="fa-solid fa-share-nodes" style={{ color: 'var(--accent-light)' }}></i> {labels.socialUiAnalytics}</h3>
+                      <span>{labels.distTelemetry}</span>
                     </div>
                     <div className="engine-badge" style={{ borderColor: 'var(--accent-muted)', color: 'var(--match-probable)' }}>
-                      <i className="fa-solid fa-chart-pie"></i> {Math.round(siglipData.social_analytics.social_ratio * 100)}% Social Ratio
+                      <i className="fa-solid fa-chart-pie"></i> {Math.round(siglipData.social_analytics.social_ratio * 100)}% {labels.socialRatio}
                     </div>
                   </div>
 
@@ -445,38 +1003,38 @@ export default function App() {
                       <div className="stat-val" style={{ color: 'var(--accent-light)', fontSize: '1.35rem' }}>
                         {Math.round(siglipData.social_analytics.social_ratio * 100)}%
                       </div>
-                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>Social Media</div>
+                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>{labels.socialMediaLabel}</div>
                     </div>
                     <div className="stat-item">
                       <div className="stat-val" style={{ color: 'var(--match-possible)', fontSize: '1.35rem' }}>
                         {Math.round(siglipData.social_analytics.vertical_ratio * 100)}%
                       </div>
-                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>Vertical Format</div>
+                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>{labels.verticalFormat}</div>
                     </div>
                     <div className="stat-item">
                       <div className="stat-val" style={{ color: 'var(--match-none)', fontSize: '1.35rem' }}>
                         {Math.round(siglipData.social_analytics.overlay_ratio * 100)}%
                       </div>
-                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>UI / Overlays</div>
+                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>{labels.uiOverlays}</div>
                     </div>
                     <div className="stat-item">
                       <div className="stat-val" style={{ color: 'var(--text-secondary)', fontSize: '1.35rem' }}>
                         {Math.round(siglipData.social_analytics.mobile_screenshot_ratio * 100)}%
                       </div>
-                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>Screenshots</div>
+                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>{labels.screenshotsLabel}</div>
                     </div>
                     <div className="stat-item">
                       <div className="stat-val" style={{ color: 'var(--match-strong)', fontSize: '1.35rem' }}>
                         +{siglipData.social_analytics.average_social_adjustment?.toFixed(3)}
                       </div>
-                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>Avg UI Boost</div>
+                      <div className="stat-label" style={{ fontSize: '0.65rem' }}>{labels.avgUiBoost}</div>
                     </div>
                   </div>
 
                   {siglipData.social_analytics.platform_distribution && Object.keys(siglipData.social_analytics.platform_distribution).length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.75rem' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                        Detected Platforms
+                        {labels.detectedPlatforms}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                         {Object.entries(siglipData.social_analytics.platform_distribution).map(([platform, count]) => {
@@ -489,7 +1047,7 @@ export default function App() {
                           
                           return (
                             <span key={platform} className="media-badge highlight" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}>
-                              <i className={platformIcon}></i> {platformLabel}: {count} {count === 1 ? 'post' : 'posts'}
+                              <i className={platformIcon}></i> {platformLabel}: {count} {count === 1 ? labels.postCount : labels.postsCount}
                             </span>
                           );
                         })}
@@ -500,7 +1058,7 @@ export default function App() {
               )}
 
               {/* Individual Target Cards list */}
-              <div className="results-header">Target Verification List</div>
+              <div className="results-header">{labels.targetVerificationList}</div>
               <div className="results-list">
                 {siglipData.results?.map((res, index) => {
                   const isExpanded = !!expandedCards[index]
@@ -516,30 +1074,31 @@ export default function App() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <span className="file-name">{res.filename || 'Target Content'}</span>
                                 {renderVerdictBadge(res.match_type)}
+                                {renderComplianceBadge(res.compliance_status)}
                               </div>
                               {res.media_context && (
                                 <div className="media-badges-row">
                                   <span className="media-badge">
-                                    <i className="fa-solid fa-expand"></i> Aspect: {res.media_context.aspect_ratio?.toFixed(2)}
+                                    <i className="fa-solid fa-expand"></i> {labels.aspect}{res.media_context.aspect_ratio?.toFixed(2)}
                                   </span>
                                   {res.media_context.is_social_media && (
                                     <span className="media-badge highlight">
-                                      <i className="fa-solid fa-share-nodes"></i> Social Format
+                                      <i className="fa-solid fa-share-nodes"></i> {labels.socialFormat}
                                     </span>
                                   )}
                                   {res.media_context.has_overlays && (
                                     <span className="media-badge warning">
-                                      <i className="fa-solid fa-rectangle-ad"></i> Overlay
+                                      <i className="fa-solid fa-rectangle-ad"></i> {labels.overlay}
                                     </span>
                                   )}
                                   {res.media_context.compression_level > 0.4 && (
                                     <span className="media-badge">
-                                      <i className="fa-solid fa-compress"></i> Noise: {Math.round(res.media_context.compression_level * 100)}%
+                                      <i className="fa-solid fa-compress"></i> {labels.noise}{Math.round(res.media_context.compression_level * 100)}%
                                     </span>
                                   )}
                                   {res.media_context.suggested_threshold_offset < 0 && (
                                     <span className="media-badge highlight">
-                                      <i className="fa-solid fa-sliders"></i> Offset: {res.media_context.suggested_threshold_offset?.toFixed(2)}
+                                      <i className="fa-solid fa-sliders"></i> {labels.offset}{res.media_context.suggested_threshold_offset?.toFixed(2)}
                                     </span>
                                   )}
                                 </div>
@@ -576,43 +1135,43 @@ export default function App() {
                             {/* Similarity Metrics */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-chart-line"></i> Similarity Metrics
+                                <i className="fa-solid fa-chart-line"></i> {labels.similarityMetrics}
                               </div>
                               <div className="matching-highlights">
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Overall Match Verdict</span>
+                                  <span className="highlight-label">{labels.overallVerdict}</span>
                                   <span className="highlight-val">{res.verdict}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Primary Blended Score</span>
+                                  <span className="highlight-label">{labels.primaryBlendedScore}</span>
                                   <span className="highlight-val mono">{(res.confidence).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Max Similarity Found</span>
+                                  <span className="highlight-label">{labels.maxSimilarityFound}</span>
                                   <span className="highlight-val mono">{(res.top_similarity).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Average Similarity</span>
+                                  <span className="highlight-label">{labels.averageSimilarity}</span>
                                   <span className="highlight-val mono">{(res.average_similarity).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Threshold Applied</span>
+                                  <span className="highlight-label">{labels.thresholdApplied}</span>
                                   <span className="highlight-val mono">{(res.threshold_used).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Frames Evaluated</span>
+                                  <span className="highlight-label">{labels.framesEvaluated}</span>
                                   <span className="highlight-val">{res.num_frames_analyzed}</span>
                                 </div>
                                 {res.best_reference && (
                                   <div className="highlight-box">
-                                    <span className="highlight-label">Best Reference Image</span>
+                                    <span className="highlight-label">{labels.bestReferenceImage}</span>
                                     <span className="highlight-val" style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={res.best_reference}>
                                       {res.best_reference}
                                     </span>
                                   </div>
                                 )}
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Compute Time</span>
+                                  <span className="highlight-label">{labels.computeTime}</span>
                                   <span className="highlight-val">{res.processing_time_ms} ms</span>
                                 </div>
                               </div>
@@ -621,7 +1180,7 @@ export default function App() {
                             {/* Reference Matching Breakdown */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-cubes"></i> Reference Matching Breakdown
+                                <i className="fa-solid fa-cubes"></i> {labels.refMatchingBreakdown}
                               </div>
                               <div className="ref-matches-list">
                                 {res.top_matches?.map((ref, rIndex) => (
@@ -650,12 +1209,12 @@ export default function App() {
                             {/* Competitor Overlap Gauges */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-shield-halved"></i> Brand Conflict & Proximity
+                                <i className="fa-solid fa-shield-halved"></i> {labels.brandConflictProximity}
                               </div>
                               <div className="matching-highlights">
                                 <div className="highlight-box-vertical">
                                   <div className="highlight-vertical-header">
-                                    <span className="highlight-label">Competitor Proximity Index</span>
+                                    <span className="highlight-label">{labels.competitorProximityIndex}</span>
                                     <span className="highlight-val mono">{(res.competitor_similarity || 0.0).toFixed(4)}</span>
                                   </div>
                                   <div className="competitor-track">
@@ -666,14 +1225,14 @@ export default function App() {
                                   </div>
                                   {res.explainability?.best_competitor && (
                                     <div className="competitor-meta-info">
-                                      Nearest Competitor Asset: <strong>{res.explainability.best_competitor}</strong>
+                                      {labels.nearestCompetitor}<strong>{res.explainability.best_competitor}</strong>
                                     </div>
                                   )}
                                 </div>
 
                                 <div className="highlight-box-vertical">
                                   <div className="highlight-vertical-header">
-                                    <span className="highlight-label">Decision Ambiguity Index</span>
+                                    <span className="highlight-label">{labels.decisionAmbiguityIndex}</span>
                                     <span className="highlight-val mono">{(res.ambiguity_score || 0.0).toFixed(4)}</span>
                                   </div>
                                   <div className="competitor-track">
@@ -683,7 +1242,7 @@ export default function App() {
                                     ></div>
                                   </div>
                                   <div className="competitor-meta-info">
-                                    Status: <strong className={res.ambiguity_score > 0.5 ? 'txt-danger' : 'txt-safe'}>{res.ambiguity_score > 0.5 ? 'AMBIGUOUS MATCH PATTERN' : 'HIGH RETRIEVAL MARGIN'}</strong>
+                                    {labels.statusLabel}<strong className={res.ambiguity_score > 0.5 ? 'txt-danger' : 'txt-safe'}>{res.ambiguity_score > 0.5 ? labels.ambiguousMatch : labels.highRetrievalMargin}</strong>
                                   </div>
                                 </div>
                               </div>
@@ -692,7 +1251,7 @@ export default function App() {
                             {/* Diagnostics Panel & Warnings */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-stethoscope"></i> Diagnostic & Explainability Logs
+                                <i className="fa-solid fa-stethoscope"></i> {labels.diagnosticsLogs}
                               </div>
                               
                               {res.warnings && res.warnings.length > 0 ? (
@@ -708,7 +1267,7 @@ export default function App() {
                                 <div className="diagnostic-success-bar">
                                   <i className="fa-solid fa-circle-check success-icon"></i>
                                   <div className="success-text">
-                                    <strong>All Retrieval Diagnostics Nominal:</strong> Verification metrics confirmed clear decision boundaries. No competitor distractor encroachment detected.
+                                    <strong>{labels.allDiagnosticsNominal}</strong> {labels.nominalDesc}
                                   </div>
                                 </div>
                               )}
@@ -719,104 +1278,104 @@ export default function App() {
                           <div className="calibration-grid">
                             {/* Calibration Card 1: Platt scaling */}
                             <div className="calibration-card">
-                              <div className="calibration-card-header">
-                                <i className="fa-solid fa-chart-line"></i> Platt scaling calibration
+                               <div className="calibration-card-header">
+                                <i className="fa-solid fa-chart-line"></i> {labels.plattCalibration}
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Calibrated Probability</span>
+                                <span className="calibration-stat-label">{labels.calibratedProb}</span>
                                 <span className={`calibration-stat-val ${res.match_type === 'STRONG_MATCH' ? 'highlight-green' : res.match_type === 'PROBABLE_STRONG_MATCH' ? 'highlight-gold' : ''}`}>
                                   {res.confidence_pct}%
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Raw Max Similarity</span>
+                                <span className="calibration-stat-label">{labels.rawMaxSim}</span>
                                 <span className="calibration-stat-val">{res.top_similarity?.toFixed(4)}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Raw Avg Similarity</span>
+                                <span className="calibration-stat-label">{labels.rawAvgSim}</span>
                                 <span className="calibration-stat-val">{res.average_similarity?.toFixed(4)}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Active Threshold</span>
+                                <span className="calibration-stat-label">{labels.activeThreshold}</span>
                                 <span className="calibration-stat-val">{res.threshold_used?.toFixed(4)}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Decision Margin</span>
+                                <span className="calibration-stat-label">{labels.decisionMargin}</span>
                                 <span className="calibration-stat-val">{(res.confidence - res.threshold_used)?.toFixed(4)}</span>
                               </div>
                             </div>
 
                             {/* Calibration Card 2: Temporal Stability */}
                             <div className="calibration-card">
-                              <div className="calibration-card-header">
-                                <i className="fa-solid fa-clock-rotate-left"></i> Temporal stability info
+                               <div className="calibration-card-header">
+                                <i className="fa-solid fa-clock-rotate-left"></i> {labels.temporalStabilityInfo}
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Temporal Continuity Strength</span>
+                                <span className="calibration-stat-label">{labels.temporalContinuityStrength}</span>
                                 <span className="calibration-stat-val highlight-green">
                                   {(res.temporal_strength || 0.0)?.toFixed(4)}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Frames Evaluated</span>
+                                <span className="calibration-stat-label">{labels.framesEvaluated}</span>
                                 <span className="calibration-stat-val">{res.num_frames_analyzed}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Stable Segments Count</span>
+                                <span className="calibration-stat-label">{labels.stableSegmentsCount}</span>
                                 <span className="calibration-stat-val">{res.stable_segments ? res.stable_segments.length : 0}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Best Match Frame ID</span>
+                                <span className="calibration-stat-label">{labels.bestMatchFrameId}</span>
                                 <span className="calibration-stat-val" style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={res.best_frame}>
                                   {res.best_frame || 'N/A'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Diagnostics Status</span>
-                                <span className="calibration-stat-val">{res.warnings && res.warnings.length > 0 ? 'WARNINGS FLAGGED' : 'NOMINAL'}</span>
+                                <span className="calibration-stat-label">{labels.diagnosticsStatus}</span>
+                                <span className="calibration-stat-val">{res.warnings && res.warnings.length > 0 ? labels.warningsFlagged : labels.nominal}</span>
                               </div>
                             </div>
 
                             {/* Calibration Card 3: Reference Cluster & Boost Telemetry */}
                             <div className="calibration-card">
                               <div className="calibration-card-header">
-                                <i className="fa-solid fa-cubes"></i> Semantic Cluster & Adjustments
+                                <i className="fa-solid fa-cubes"></i> {labels.semanticCluster}
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Dominant Cluster Group</span>
+                                <span className="calibration-stat-label">{labels.dominantCluster}</span>
                                 <span className="calibration-stat-val" style={{ color: 'var(--accent-light)' }}>
                                   {(() => {
                                     const cl = res.dominant_cluster;
-                                    if (cl === 'logo_refs') return 'Logo References';
-                                    if (cl === 'drink_refs') return 'Drink References';
-                                    if (cl === 'product_refs') return 'Product References';
-                                    if (cl === 'store_refs') return 'Store References';
-                                    return cl || 'Global Centroid';
+                                    if (cl === 'logo_refs') return labels.logoRefs;
+                                    if (cl === 'drink_refs') return labels.drinkRefs;
+                                    if (cl === 'product_refs') return labels.productRefs;
+                                    if (cl === 'store_refs') return labels.storeRefs;
+                                    return cl || labels.globalCentroid;
                                   })()}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Cluster Centroid Similarity</span>
+                                <span className="calibration-stat-label">{labels.clusterCentroidSim}</span>
                                 <span className="calibration-stat-val">
                                   {res.cluster_similarity !== undefined && res.cluster_similarity !== null ? res.cluster_similarity.toFixed(4) : '0.0000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Social UI Adjustment</span>
+                                <span className="calibration-stat-label">{labels.socialUiAdjustment}</span>
                                 <span className={`calibration-stat-val ${res.social_adjustment > 0 ? 'highlight-green' : ''}`}>
                                   {res.social_adjustment > 0 ? `+${res.social_adjustment.toFixed(3)}` : '0.000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Branding Product Boost</span>
+                                <span className="calibration-stat-label">{labels.brandingProductBoost}</span>
                                 <span className={`calibration-stat-val ${res.product_boost > 0 ? 'highlight-green' : ''}`}>
                                   {res.product_boost > 0 ? `+${res.product_boost.toFixed(3)}` : '0.000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Calibration Adjustments</span>
+                                <span className="calibration-stat-label">{labels.calibrationAdjustments}</span>
                                 <span className="calibration-stat-val">
-                                  {res.social_adjustment > 0 || res.product_boost > 0 ? 'ACTIVE BOOSTS' : 'NOMINAL'}
+                                  {res.social_adjustment > 0 || res.product_boost > 0 ? labels.activeBoosts : labels.nominal}
                                 </span>
                               </div>
                             </div>
@@ -826,7 +1385,7 @@ export default function App() {
                           {res.explainability?.reasoning_steps && (
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-brain"></i> Model Decision Reasoning Chain
+                                <i className="fa-solid fa-brain"></i> {labels.modelDecisionChain}
                               </div>
                               <div className="reasoning-list">
                                 {res.explainability.reasoning_steps.map((step, sIdx) => {
@@ -853,7 +1412,7 @@ export default function App() {
                                   }
                                   
                                   const parts = step.split(': ');
-                                  const title = parts.length > 1 && parts[0].length < 30 ? parts[0] : `Step ${sIdx + 1}`;
+                                  const title = parts.length > 1 && parts[0].length < 30 ? parts[0] : `${labels.stepPrefix}${sIdx + 1}`;
                                   const desc = parts.length > 1 && parts[0].length < 30 ? parts.slice(1).join(': ') : step;
 
                                   return (
@@ -876,7 +1435,7 @@ export default function App() {
                           {res.num_frames_analyzed > 1 && res.frame_scores && res.frame_scores.length > 1 && (
                             <div className="timeline-section">
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-chart-area"></i> Temporal Verification & Retrieval Timeline
+                                <i className="fa-solid fa-chart-area"></i> {labels.temporalTimelineChart}
                               </div>
                               
                               <div className="timeline-svg-wrapper">
@@ -912,7 +1471,7 @@ export default function App() {
                                     return (
                                       <g>
                                         <line x1="50" y1={yThresh} x2="750" y2={yThresh} stroke="var(--match-possible)" strokeWidth="1.5" strokeDasharray="3,3" />
-                                        <text x="755" y={yThresh + 3} fill="var(--match-possible)" fontSize="9" fontWeight="bold">THR: {res.threshold_used.toFixed(2)}</text>
+                                        <text x="755" y={yThresh + 3} fill="var(--match-possible)" fontSize="9" fontWeight="bold">{labels.thrLabel}{res.threshold_used.toFixed(2)}</text>
                                       </g>
                                     )
                                   })()}
@@ -988,7 +1547,7 @@ export default function App() {
                                           stroke={isMatched ? "var(--text-primary)" : "var(--match-none)"}
                                           strokeWidth="1.5" 
                                         />
-                                        <title>{`Frame: ${frame.frame_id}\nRaw Score: ${(frame.raw_score !== undefined ? frame.raw_score : frame.max_similarity).toFixed(3)}\nSmoothed: ${smVal.toFixed(3)}\nCompetitor Proximity: ${(frame.competitor_similarity !== undefined ? frame.competitor_similarity : 0.0).toFixed(3)}\nBest Reference: ${frame.best_reference}`}</title>
+                                        <title>{`${labels.frameLabel}${frame.frame_id}\n${labels.rawScoreLabel}${(frame.raw_score !== undefined ? frame.raw_score : frame.max_similarity).toFixed(3)}\n${labels.smoothedLabel}${smVal.toFixed(3)}\n${labels.competitorProximityLabel}${(frame.competitor_similarity !== undefined ? frame.competitor_similarity : 0.0).toFixed(3)}\n${labels.bestRefLabel}${frame.best_reference}`}</title>
                                       </g>
                                     )
                                   })}
@@ -997,10 +1556,10 @@ export default function App() {
                               
                               {/* Dynamic Legend */}
                               <div className="timeline-legend">
-                                <div className="legend-item"><span className="legend-dot raw"></span> Raw Frame Score</div>
-                                <div className="legend-item"><span className="legend-dot smoothed"></span> Smoothed Match Score</div>
-                                <div className="legend-item"><span className="legend-dot competitor"></span> Competitor Proximity</div>
-                                <div className="legend-item"><span className="legend-dot thresh"></span> Match Threshold</div>
+                                <div className="legend-item"><span className="legend-dot raw"></span> {labels.rawFrameScore}</div>
+                                <div className="legend-item"><span className="legend-dot smoothed"></span> {labels.smoothedMatchScore}</div>
+                                <div className="legend-item"><span className="legend-dot competitor"></span> {labels.competitorProximityLabelLegend}</div>
+                                <div className="legend-item"><span className="legend-dot thresh"></span> {labels.matchThresholdLabelLegend}</div>
                               </div>
 
                               {/* Active Matching Timeline Segment Pills */}
@@ -1008,7 +1567,7 @@ export default function App() {
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem', justifyContent: 'center' }}>
                                   {res.stable_segments.map((seg, sIdx) => (
                                     <span key={sIdx} className="media-badge highlight" style={{ fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}>
-                                      <i className="fa-solid fa-circle-play"></i> Segment {sIdx + 1}: Frames {seg.start_frame}-{seg.end_frame} ({seg.duration_frames}f) | Avg: {(seg.average_score * 100).toFixed(1)}%
+                                      <i className="fa-solid fa-circle-play"></i> {labels.segmentLabel}{sIdx + 1}: Frames {seg.start_frame}-{seg.end_frame} ({seg.duration_frames}f) | Avg: {(seg.average_score * 100).toFixed(1)}%
                                     </span>
                                   ))}
                                 </div>
@@ -1020,7 +1579,7 @@ export default function App() {
                           {res.num_frames_analyzed > 1 && res.frame_scores && res.frame_scores.length > 0 && (
                             <div className="keyframes-section">
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-photo-film"></i> Extracted Frame Analysis
+                                <i className="fa-solid fa-photo-film"></i> {labels.extractedFrameAnalysis}
                               </div>
                               <div className="keyframes-grid">
                                 {res.frame_scores.map((frame, fIndex) => (
@@ -1033,6 +1592,148 @@ export default function App() {
                               </div>
                             </div>
                           )}
+
+                          {/* Caption & Brief Compliance Analysis */}
+                          <div className="compliance-panel">
+                            <div className="detail-section-title">
+                              <i className="fa-solid fa-square-check"></i> {labels.ocrComplianceTitle}
+                            </div>
+                            
+                            {res.compliance_status && res.compliance_status !== 'NOT_EVALUATED' ? (
+                              <>
+                                <div className="compliance-grid-layout">
+                                  {/* Left Side: Score summary */}
+                                  <div className="compliance-summary-box">
+                                    <div className={`compliance-score-circle ${res.compliance_status.toLowerCase()}`}>
+                                      {res.compliance_score}%
+                                    </div>
+                                    <div className="compliance-status-label">{labels.complianceGrade}</div>
+                                    {renderComplianceBadge(res.compliance_status)}
+                                  </div>
+
+                                  {/* Right Side: Evaluated rules breakdown */}
+                                  <div className="compliance-rules-box">
+                                    {/* Violations (Hard Fails) */}
+                                    {res.rules_detailed && res.rules_detailed.filter(r => !r.passed && r.severity === 'CRITICAL').length > 0 && (
+                                      <div>
+                                        <div className="compliance-rule-group-title" style={{ color: 'var(--match-none)' }}>
+                                          {labels.violationsPts}
+                                        </div>
+                                        <div className="compliance-rule-list">
+                                          {res.rules_detailed.filter(r => !r.passed && r.severity === 'CRITICAL').map((rule, rIdx) => (
+                                            <div key={rIdx} className="compliance-rule-item violation">
+                                              <i className="fa-solid fa-circle-xmark"></i>
+                                              <div style={{ flex: 1 }}>
+                                                <span>{rule.details}</span>
+                                                <span className="badge-severity critical">{labels.critical}</span>
+                                                {rule.match_source && (
+                                                  <span className={`badge-source ${rule.match_source}`}>
+                                                    <i className={rule.match_source === 'ocr' ? 'fa-solid fa-camera' : rule.match_source === 'caption' ? 'fa-solid fa-align-left' : 'fa-solid fa-cubes'}></i>
+                                                    {rule.match_source === 'ocr' ? labels.ocr : rule.match_source === 'caption' ? labels.caption : labels.both}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Warnings */}
+                                    {res.rules_detailed && res.rules_detailed.filter(r => !r.passed && r.severity === 'WARNING').length > 0 && (
+                                      <div style={{ marginTop: res.rules_detailed.filter(r => !r.passed && r.severity === 'CRITICAL').length > 0 ? '0.75rem' : '0' }}>
+                                        <div className="compliance-rule-group-title" style={{ color: 'var(--match-possible)' }}>
+                                          {labels.warningsPts}
+                                        </div>
+                                        <div className="compliance-rule-list">
+                                          {res.rules_detailed.filter(r => !r.passed && r.severity === 'WARNING').map((rule, rIdx) => (
+                                            <div key={rIdx} className="compliance-rule-item warning">
+                                              <i className="fa-solid fa-triangle-exclamation"></i>
+                                              <div style={{ flex: 1 }}>
+                                                <span>{rule.details}</span>
+                                                <span className="badge-severity warning">{labels.warning}</span>
+                                                {rule.match_source && (
+                                                  <span className={`badge-source ${rule.match_source}`}>
+                                                    <i className={rule.match_source === 'ocr' ? 'fa-solid fa-camera' : rule.match_source === 'caption' ? 'fa-solid fa-align-left' : 'fa-solid fa-cubes'}></i>
+                                                    {rule.match_source === 'ocr' ? labels.ocr : rule.match_source === 'caption' ? labels.caption : labels.both}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Passed Rules */}
+                                    {res.rules_detailed && res.rules_detailed.filter(r => r.passed).length > 0 && (
+                                      <div style={{ marginTop: res.rules_detailed.filter(r => !r.passed).length > 0 ? '0.75rem' : '0' }}>
+                                        <div className="compliance-rule-group-title" style={{ color: 'var(--match-strong)' }}>
+                                          {labels.passedChecks}
+                                        </div>
+                                        <div className="compliance-rule-list">
+                                          {res.rules_detailed.filter(r => r.passed).map((rule, rIdx) => (
+                                            <div key={rIdx} className="compliance-rule-item pass">
+                                              <i className="fa-solid fa-circle-check"></i>
+                                              <div style={{ flex: 1 }}>
+                                                <span>{rule.details}</span>
+                                                <span className={`badge-severity ${rule.severity?.toLowerCase() || 'info'}`}>{rule.severity || labels.info}</span>
+                                                {rule.match_source && (
+                                                  <span className={`badge-source ${rule.match_source}`}>
+                                                    <i className={rule.match_source === 'ocr' ? 'fa-solid fa-camera' : rule.match_source === 'caption' ? 'fa-solid fa-align-left' : 'fa-solid fa-cubes'}></i>
+                                                    {rule.match_source === 'ocr' ? labels.ocr : rule.match_source === 'caption' ? labels.caption : labels.both}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* OCR Extracted Text Bubble List */}
+                                {res.ocr_text && res.ocr_text.length > 0 && (
+                                  <div className="ocr-extracted-section">
+                                    <div className="ocr-extracted-title">
+                                      <i className="fa-solid fa-binoculars"></i> Extracted OCR Overlay Text ({res.ocr_text.length})
+                                    </div>
+                                    <div className="ocr-bubble-list">
+                                      {res.ocr_text.map((text, tIdx) => (
+                                        <span key={tIdx} className="ocr-bubble">
+                                          <i className="fa-solid fa-font"></i> {text}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* OCR Technical Explainability Logs */}
+                                {res.ocr_explainability && (
+                                  <details className="ocr-explainability-section">
+                                    <summary className="ocr-explainability-header">
+                                      <span>
+                                        <i className="fa-solid fa-bug" style={{ marginRight: '0.4rem', color: 'var(--accent-light)' }}></i>
+                                        OCR Diagnostic Logs & Reasoning Chain
+                                      </span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Click to Expand / Collapse</span>
+                                    </summary>
+                                    <pre className="ocr-explainability-pre">
+                                      {res.ocr_explainability}
+                                    </pre>
+                                  </details>
+                                )}
+                              </>
+                            ) : (
+                              <div className="diagnostic-warning-bar" style={{ background: 'var(--bg-dark)' }}>
+                                <i className="fa-solid fa-circle-info warning-icon" style={{ color: 'var(--text-muted)' }}></i>
+                                <div className="warning-text" style={{ color: 'var(--text-secondary)' }}>
+                                  <strong>Caption Compliance Not Evaluated:</strong> Caption analysis is only performed for successful campaign matching posts when caption text and brief compliance rules are provided.
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1045,7 +1746,7 @@ export default function App() {
           {/* State 4: Legacy results display */}
           {!loading && legacyResults.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="results-header">Legacy Analysis Results</div>
+              <div className="results-header">{labels.legacyResultsHeader}</div>
               <div className="results-list">
                 {legacyResults.map((r, i) => (
                   <div className="result-card STRONG_MATCH" key={i} style={{ borderLeft: '4px solid var(--accent)' }}>
@@ -1054,7 +1755,7 @@ export default function App() {
                         <div className="file-info">
                           {getFileTypeIcon(r.file)}
                           <span className="file-name" style={{ maxWidth: '350px' }}>{r.file.split(/[\\/]/).pop()}</span>
-                          <span className="badge legacy">{r.influencer || 'Post'} ({r.platform || 'Platform'})</span>
+                          <span className="badge legacy">{r.influencer || labels.post} ({r.platform || labels.platform})</span>
                         </div>
                         <span className="file-path">{r.file}</span>
                       </div>
@@ -1072,6 +1773,137 @@ export default function App() {
 
         </section>
       </main>
+      )} {/* end mainTab === 'workstation' */}
+
+      {/* ── QA REVIEW QUEUE TAB ──────────────────────────────── */}
+      {mainTab === 'queue' && (
+        <main className="queue-main">
+          <ReviewQueue
+            apiPort={apiPort}
+            onOpenWorkstation={(session) => setSelectedSession(session)}
+            refreshTrigger={refreshQueueTrigger}
+            lang={lang}
+          />
+        </main>
+      )}
+
+      {/* ── BATCH INGESTION TAB ───────────────────────────────── */}
+      {mainTab === 'batch' && (
+        <main className="batch-main">
+          <div className="batch-ingestion-panel">
+            <div className="batch-header-row">
+              <div>
+                <h2><i className="fa-solid fa-layer-group"></i> {labels.batchTitle}</h2>
+                <p>{labels.batchSubtitle}</p>
+              </div>
+              {asyncTask && (
+                <span className={`batch-status-pill ${asyncTask.status.toLowerCase()}`}>
+                  {asyncTask.status === 'COMPLETED'
+                    ? <><i className="fa-solid fa-circle-check"></i> {labels.complete}</>
+                    : asyncTask.status === 'FAILED'
+                      ? <><i className="fa-solid fa-circle-xmark"></i> {labels.failed}</>
+                      : <><i className="fa-solid fa-circle-notch fa-spin"></i> {asyncTask.status}</>
+                  }
+                </span>
+              )}
+            </div>
+
+            <div className="batch-form-grid">
+              <div className="form-group">
+                <label><i className="fa-solid fa-folder-open" style={{ marginRight: '0.35rem', color: 'var(--accent-light)' }}></i> {labels.referenceCampaignDir}</label>
+                <div className="input-wrapper">
+                  <input ref={siglipRefPathRef} className="form-control" placeholder="e.g. data/reference" defaultValue="data/reference" />
+                  <i className="fa-solid fa-folder-open"></i>
+                </div>
+              </div>
+              <div className="form-group">
+                <label><i className="fa-solid fa-bullseye" style={{ marginRight: '0.35rem', color: 'var(--accent-light)' }}></i> {labels.targetMediaFolderOrFile}</label>
+                <div className="input-wrapper">
+                  <input ref={siglipTargetPathRef} className="form-control" placeholder="e.g. data/influencer_posts/" defaultValue="data" />
+                  <i className="fa-solid fa-bullseye"></i>
+                </div>
+              </div>
+              <div className="form-group">
+                <label><i className="fa-solid fa-tag" style={{ marginRight: '0.35rem', color: 'var(--accent-light)' }}></i> {labels.campaignTagLabel}</label>
+                <div className="input-wrapper">
+                  <input ref={siglipCampaignNameRef} className="form-control" placeholder="e.g. summer_promo_2026" defaultValue="summer_promo" />
+                  <i className="fa-solid fa-tag"></i>
+                </div>
+              </div>
+              <div className="form-group">
+                <label><i className="fa-solid fa-server" style={{ marginRight: '0.35rem', color: 'var(--accent-light)' }}></i> {labels.apiPortLabel}</label>
+                <div className="input-wrapper">
+                  <input type="text" className="form-control" placeholder="8001" value={apiPort} onChange={(e) => setApiPort(e.target.value.trim())} />
+                  <i className="fa-solid fa-server"></i>
+                </div>
+              </div>
+            </div>
+
+            <div className="batch-form-grid" style={{ gridTemplateColumns: '1fr' }}>
+              <div className="form-group">
+                <label>{labels.captionTextLabel}</label>
+                <textarea className="form-control" style={{ height: '60px', padding: '0.75rem 1rem', resize: 'vertical' }} placeholder={labels.captionPlaceholder} value={siglipCaption} onChange={(e) => setSiglipCaption(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>{labels.campaignRulesLabel}</label>
+                <textarea className="form-control" style={{ height: '75px', padding: '0.75rem 1rem', resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }} placeholder={labels.rulesPlaceholder} value={siglipRules} onChange={(e) => setSiglipRules(e.target.value)} />
+              </div>
+            </div>
+
+            {error && (
+              <div className="error-banner">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button id="btn-launch-batch" className="btn-primary batch-run-btn" onClick={runSiglipMatchAsync} disabled={asyncTask?.polling}>
+              {asyncTask?.polling
+                ? <><i className="fa-solid fa-circle-notch fa-spin"></i> {labels.processingBatch}</>
+                : <><i className="fa-solid fa-layer-group"></i> {labels.launchAsyncBatch}</>
+              }
+            </button>
+
+            {asyncTask && (
+              <div className="batch-progress-card">
+                <div className="batch-progress-header">
+                  <span><i className="fa-solid fa-gauge-high"></i> {labels.liveBatchTelemetry}</span>
+                  <span className="mono" style={{ fontSize: '0.85rem' }}>{asyncTask.progress?.toFixed(1)}%</span>
+                </div>
+                <div className="batch-progress-track">
+                  <div
+                    className={`batch-progress-fill ${asyncTask.status === 'COMPLETED' ? 'complete' : asyncTask.status === 'FAILED' ? 'failed' : 'active'}`}
+                    style={{ width: `${asyncTask.progress || 0}%` }}
+                  ></div>
+                </div>
+                <div className="batch-stage-label">
+                  <i className="fa-solid fa-circle-dot stage-dot"></i>
+                  {' '}{asyncTask.stage}
+                </div>
+                {asyncTask.status === 'COMPLETED' && (
+                  <div className="batch-complete-cta">
+                    <i className="fa-solid fa-party-horn"></i>
+                    {' '}{labels.batchComplete}{' '}
+                    <button className="link-btn" onClick={() => setMainTab('queue')}>{labels.qaReviewQueue}</button>
+                    {' '}{labels.batchCompleteToInspect}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {/* ── QA WORKSTATION MODAL (mounts over any active tab) ───────────── */}
+      {selectedSession && (
+        <MediaReviewModal
+          session={selectedSession}
+          apiPort={apiPort}
+          onClose={() => setSelectedSession(null)}
+          onSaved={() => setRefreshQueueTrigger(p => p + 1)}
+          lang={lang}
+        />
+      )}
     </div>
   )
 }

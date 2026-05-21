@@ -141,3 +141,99 @@ class RetrievalDebugger:
         }
 
         return explainability_block
+
+    @classmethod
+    def compile_ocr_explainability(
+        cls,
+        ocr_blocks: list[dict],
+        rules_detailed: list[dict],
+        compliance_score: float,
+        compliance_status: str,
+        policy_engine_meta: dict | None = None,
+        platform_detected: str | None = "Unknown",
+        caption_detected: str | None = "",
+        hashtags: list[str] | None = None,
+        ignored_ui_elements: list[str] | None = None
+    ) -> dict[str, Any]:
+        """
+        Assembles diagnostics and explainability metrics for OCR and policy compliance checks.
+        """
+        reasoning_steps = []
+        
+        reasoning_steps.append(
+            f"Policy evaluation and visual analysis triggered: successfully scanned target visual components. "
+            f"Extracted {len(ocr_blocks)} text bounding boxes with confidence levels."
+        )
+        
+        if ocr_blocks:
+            phrases = [block.get("text", "") for block in ocr_blocks]
+            reasoning_steps.append(
+                f"Normalized on-screen overlay text detected: {', '.join(phrases[:10])}"
+                + (f" ... (+{len(phrases) - 10} more)" if len(phrases) > 10 else "")
+            )
+        else:
+            reasoning_steps.append("No on-screen overlay text detected (or below confidence threshold 0.3).")
+            
+        critical_count = sum(1 for r in rules_detailed if not r.get("passed", True) and r.get("severity") == "CRITICAL" and not r.get("is_optional", False))
+        warning_count = sum(1 for r in rules_detailed if not r.get("passed", True) and r.get("severity") == "WARNING" and not r.get("is_optional", False))
+        info_count = sum(1 for r in rules_detailed if not r.get("passed", True) and r.get("severity") == "INFO" and not r.get("is_optional", False))
+        
+        reasoning_steps.append(
+            f"Compliance Policy evaluated: score calculated at {compliance_score}/100. "
+            f"Status: {compliance_status}. "
+            f"Violations breakdown: {critical_count} CRITICAL, {warning_count} WARNING, {info_count} INFO."
+        )
+        
+        for rule in rules_detailed:
+            if not rule.get("passed", True):
+                optional_str = " (OPTIONAL)" if rule.get("is_optional") else ""
+                sources_str = f" ({', '.join(rule['sources'])})" if rule.get("sources") else ""
+                reasoning_steps.append(
+                    f"VIOLATION [{rule.get('severity')}]{optional_str}: '{rule.get('raw_text')}' failed.{sources_str} "
+                    f"Details: {rule.get('details')}"
+                )
+            else:
+                if rule.get("match_source"):
+                    reasoning_steps.append(
+                        f"COMPLIANT [{rule.get('severity')}]: '{rule.get('raw_text')}' passed. "
+                        f"Matched on: {rule.get('match_source')}"
+                    )
+
+        if policy_engine_meta:
+            conds = policy_engine_meta.get("conditional_rules_triggered", [])
+            escs = policy_engine_meta.get("escalations", [])
+            cross = policy_engine_meta.get("cross_source_checks", [])
+
+            for cond in conds:
+                reasoning_steps.append(
+                    f"CONDITIONAL RULE FIRED: '{cond.get('trigger')}' trigger was activated, "
+                    f"but target consequent phrase '{cond.get('missing_consequent')}' was missing in {cond.get('source', '').upper()}."
+                )
+
+            for esc in escs:
+                reasoning_steps.append(
+                    f"SEVERITY ESCALATION TRIGGERED: {esc}"
+                )
+
+            for cr in cross:
+                reasoning_steps.append(
+                    f"CROSS-SOURCE CHECK [{cr.get('operator')}]: '{cr.get('target')}' evaluation: "
+                    f"{'PASSED' if cr.get('passed') else 'FAILED'}."
+                )
+                    
+        return {
+            "ocr_blocks_count": len(ocr_blocks),
+            "compliance_score": compliance_score,
+            "compliance_status": compliance_status,
+            "violations_breakdown": {
+                "critical": critical_count,
+                "warning": warning_count,
+                "info": info_count
+            },
+            "reasoning_steps": reasoning_steps,
+            "platform_detected": platform_detected,
+            "caption_detected": caption_detected,
+            "hashtags": hashtags or [],
+            "ignored_ui_elements": ignored_ui_elements or []
+        }
+

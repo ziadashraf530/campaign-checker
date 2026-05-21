@@ -1,0 +1,165 @@
+{
+  "analysis_id": "b255b191-058a-4cae-9f24-c2bcfe63d0de",
+  "timestamp": "2026-05-21T09:18:55.254725Z",
+  "campaign_name": "Starbucks",
+  "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images",
+  "target_path": "N:\\Coverage Team\\Starbucks ( Mr Beast ) - Visit - HighestPlatform - KSA - Feb - 2026\\hasan32en\\tiktok\\Screenshot 2026-02-16 121424.png",
+  "caption": "Best coffee ever ☕ Try Starbucks today! #StarbucksPartner @Starbucks",
+  "rules": "- must mention @Starbucks\n- must include #StarbucksPartner\n- no competitor mentions\n- avoid overly promotional wording",
+  "file": "N:\\Coverage Team\\Starbucks ( Mr Beast ) - Visit - HighestPlatform - KSA - Feb - 2026\\hasan32en\\tiktok\\Screenshot 2026-02-16 121424.png",
+  "filename": "Screenshot 2026-02-16 121424.png",
+  "campaign_match": false,
+  "match_type": "NO_MATCH",
+  "verdict": "Irrelevant",
+  "confidence": 0.4357,
+  "confidence_pct": 43.6,
+  "top_similarity": 0.6892,
+  "average_similarity": 0.6296,
+  "best_reference": "OIP (3).webp",
+  "best_frame": "Screenshot 2026-02-16 121424.png",
+  "num_references": 18,
+  "num_frames_analyzed": 1,
+  "reference_variance": 0.031,
+  "threshold_used": 0.86,
+  "frame_scores": [
+    {
+      "frame_id": "Screenshot 2026-02-16 121424.png",
+      "max_similarity": 0.6892,
+      "avg_similarity": 0.6296,
+      "top_k_avg": 0.6733,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6892,
+      "smoothed_similarity": 0.4357,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6876
+    }
+  ],
+  "top_matches": [
+    {
+      "reference_name": "OIP (3).webp",
+      "similarity": 0.6892,
+      "rank": 1
+    },
+    {
+      "reference_name": "OIP (2).webp",
+      "similarity": 0.6757,
+      "rank": 2
+    },
+    {
+      "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+      "similarity": 0.6649,
+      "rank": 3
+    },
+    {
+      "reference_name": "download (2).webp",
+      "similarity": 0.6634,
+      "rank": 4
+    },
+    {
+      "reference_name": "OIP (1).webp",
+      "similarity": 0.6551,
+      "rank": 5
+    }
+  ],
+  "processing_time_ms": 37439.9,
+  "temporal_strength": 0.0,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "explainability": {
+    "best_reference": "OIP (3).webp",
+    "best_frame": "Screenshot 2026-02-16 121424.png",
+    "temporal_strength": 0.0,
+    "competitor_overlap": 0.0,
+    "best_competitor": "",
+    "ambiguity_score": 0.0,
+    "ambiguity_reason": "Match is clear and consistent.",
+    "warnings": [],
+    "top_positive_matches": [
+      {
+        "reference_name": "OIP (3).webp",
+        "similarity": 0.6892,
+        "rank": 1
+      },
+      {
+        "reference_name": "OIP (2).webp",
+        "similarity": 0.6757,
+        "rank": 2
+      },
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+        "similarity": 0.6649,
+        "rank": 3
+      },
+      {
+        "reference_name": "download (2).webp",
+        "similarity": 0.6634,
+        "rank": 4
+      },
+      {
+        "reference_name": "OIP (1).webp",
+        "similarity": 0.6551,
+        "rank": 5
+      }
+    ],
+    "reasoning_steps": [
+      "Reference bank loaded with 18 campaign positive images. Intra-set centroid matching active.",
+      "Category-aware matching: Query mapped to reference cluster 'logo_refs' with 0.6945 centroid similarity.",
+      "Single image input: generated L2-normalized 768-dim SigLIP vision embedding.",
+      "Highest similarity found with campaign positive 'OIP (3).webp' (max similarity: 0.6892).",
+      "Competitor database inactive or empty. Distractor penalty bypassed.",
+      "Sigmoid Platt scaling calibrated raw fused visual similarity into a probability space. Calibrated Confidence: 43.6% (Midpoint aligned with target matching thresholds).",
+      "VERDICT REJECTED: Calibrated confidence (43.6%) falls short of matching threshold (71.0%)."
+    ],
+    "dominant_cluster": "logo_refs",
+    "cluster_similarity": 0.6945,
+    "social_adjustment": 0.0,
+    "product_boost": 0.0
+  },
+  "stable_segments": [],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 1.0559,
+    "has_overlays": true,
+    "is_mobile_screenshot": false,
+    "has_subtitles": false,
+    "compression_level": 0.0,
+    "suggested_threshold_offset": -0.01,
+    "reasoning": "Social UI overlay elements detected"
+  },
+  "dominant_cluster": "logo_refs",
+  "cluster_similarity": 0.6945,
+  "social_adjustment": 0.0,
+  "product_boost": 0.0,
+  "compliance_status": "NOT_EVALUATED",
+  "compliance_score": 0,
+  "score": 0,
+  "passed_rules": [],
+  "violations": [],
+  "warnings": [],
+  "rules_detailed": [],
+  "ocr_text": [],
+  "ocr_blocks": [],
+  "ocr_explainability": "",
+  "thumbnails": [],
+  "model_version": "google/siglip-base-patch16-224",
+  "threshold_version": "v1.2-adaptive",
+  "policy_version": "v2.0-compliance",
+  "ocr_version": "easyocr-1.7",
+  "reviewer_notes": "",
+  "reviewed_by": "",
+  "review_status": "REJECTED",
+  "stored": true,
+  "report_exportable": true,
+  "history_available": true,
+  "reasoning": []
+}

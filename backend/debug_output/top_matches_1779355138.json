@@ -1,0 +1,27 @@
+[
+  {
+    "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "similarity": 0.8083,
+    "rank": 1
+  },
+  {
+    "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (1).jpeg",
+    "similarity": 0.7919,
+    "rank": 2
+  },
+  {
+    "reference_name": "OIP (3).webp",
+    "similarity": 0.7896,
+    "rank": 3
+  },
+  {
+    "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42.jpeg",
+    "similarity": 0.7871,
+    "rank": 4
+  },
+  {
+    "reference_name": "download.webp",
+    "similarity": 0.7685,
+    "rank": 5
+  }
+]

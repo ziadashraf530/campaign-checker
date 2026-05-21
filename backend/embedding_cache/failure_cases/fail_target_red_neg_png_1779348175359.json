@@ -1,0 +1,14 @@
+{
+  "timestamp": 1779348175359,
+  "filename": "target_red_neg.png",
+  "similarity_score": 0.8381,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Relevant",
+  "threshold_used": 0.68,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "BRANDING BOOST: Applied +0.05 brand focus boost with low competitor overlap."
+  ]
+}

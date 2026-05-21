@@ -1,0 +1,37 @@
+{
+  "timestamp": 1779355173,
+  "type": "single_image",
+  "campaign_match": true,
+  "confidence": 0.7889,
+  "match_type": "PROBABLE_STRONG_MATCH",
+  "top_similarity": 0.7702,
+  "average_similarity": 0.6909,
+  "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+  "best_frame": "Screenshot 2026-02-10 201722.png",
+  "threshold_used": 0.8,
+  "reference_variance": 0.031,
+  "num_references": 18,
+  "num_frames": 1,
+  "processing_time_ms": 342.2,
+  "stable_segments": [],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 0.6231,
+    "has_overlays": true,
+    "is_mobile_screenshot": true,
+    "has_subtitles": true,
+    "compression_level": 0.3124,
+    "suggested_threshold_offset": -0.07,
+    "reasoning": "Vertical layout detected, Mobile screenshot indicators detected, Subtitle text detected"
+  }
+}

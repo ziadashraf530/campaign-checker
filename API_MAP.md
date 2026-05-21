@@ -15,7 +15,9 @@ Visual few-shot similarity matching using google/siglip-base-patch16-224.
     "reference_path": "string",
     "target_path": "string",
     "campaign_name": "string (optional, default: 'campaign')",
-    "debug": "boolean (optional, default: false)"
+    "debug": "boolean (optional, default: false)",
+    "caption": "string (optional, post text to analyze compliance)",
+    "rules": "string (optional, text block defining campaign brief constraints)"
   }
   ```
 
@@ -66,7 +68,17 @@ Visual few-shot similarity matching using google/siglip-base-patch16-224.
         "verdict": "Relevant",
         "confidence_pct": 89.5,
         "file": "data/influencer_video.mp4",
-        "filename": "influencer_video.mp4"
+        "filename": "influencer_video.mp4",
+        "compliance_status": "PASS",
+        "score": 100,
+        "compliance_score": 100,
+        "passed_rules": [
+          "Successfully tagged: @Starbucks",
+          "Successfully included: #StarbucksPartner",
+          "No competitor brand mentions detected."
+        ],
+        "violations": [],
+        "warnings": []
       }
     ]
   }
@@ -125,3 +137,58 @@ Server health status.
     "engine": "siglip + legacy"
   }
   ```
+
+---
+
+## 4. Brief Templates Endpoints
+
+### `GET /brief-templates/`
+Lists all available pre-configured campaign brief templates (e.g. Starbucks, KFC, Nike) containing captions, rule definitions, and severity configurations.
+
+- **Successful Response (200 OK)**:
+  ```json
+  [
+    {
+      "name": "Starbucks",
+      "caption": "My fresh daily ritual starts at @Starbucks! Fueling my day with the best beverage. ☕✨ #StarbucksPartner",
+      "rules": "Must include mention: @Starbucks\nMust include hashtag: #StarbucksPartner\nDo not mention competitors\nAvoid promotional tone\nForbidden: plastic straws\nAvoid: sugar",
+      "required_mentions": ["@Starbucks"],
+      "required_hashtags": ["#StarbucksPartner"],
+      "forbidden_terms": ["plastic straws"],
+      "promo_restrictions": ["avoid promotional tone"],
+      "severity_levels": {
+        "competitor": "CRITICAL",
+        "forbidden_term": "CRITICAL",
+        "required_mention": "CRITICAL",
+        "required_hashtag": "CRITICAL",
+        "promo_restrictions": "WARNING",
+        "warning_term": "WARNING"
+      }
+    }
+  ]
+  ```
+
+### `GET /brief-templates/{name}`
+Retrieves a specific brief template by its name.
+
+- **Successful Response (200 OK)**:
+  ```json
+  {
+    "name": "Starbucks",
+    "caption": "My fresh daily ritual starts at @Starbucks! Fueling my day with the best beverage. ☕✨ #StarbucksPartner",
+    "rules": "Must include mention: @Starbucks\nMust include hashtag: #StarbucksPartner\nDo not mention competitors\nAvoid promotional tone\nForbidden: plastic straws\nAvoid: sugar",
+    "required_mentions": ["@Starbucks"],
+    "required_hashtags": ["#StarbucksPartner"],
+    "forbidden_terms": ["plastic straws"],
+    "promo_restrictions": ["avoid promotional tone"],
+    "severity_levels": {
+      "competitor": "CRITICAL",
+      "forbidden_term": "CRITICAL",
+      "required_mention": "CRITICAL",
+      "required_hashtag": "CRITICAL",
+      "promo_restrictions": "WARNING",
+      "warning_term": "WARNING"
+    }
+  }
+  ```
+

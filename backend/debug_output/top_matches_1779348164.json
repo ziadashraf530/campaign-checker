@@ -1,0 +1,22 @@
+[
+  {
+    "reference_name": "blue_2.png",
+    "similarity": 0.8554,
+    "rank": 1
+  },
+  {
+    "reference_name": "blue_3.png",
+    "similarity": 0.854,
+    "rank": 2
+  },
+  {
+    "reference_name": "blue_1.png",
+    "similarity": 0.8528,
+    "rank": 3
+  },
+  {
+    "reference_name": "blue_4.png",
+    "similarity": 0.8399,
+    "rank": 4
+  }
+]

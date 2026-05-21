@@ -1,0 +1,62 @@
+[
+  {
+    "raw_text": "- must mention @Starbucks",
+    "rule_type": "required_mention",
+    "target": "@Starbucks",
+    "severity": "CRITICAL",
+    "sources": [],
+    "is_conditional": false,
+    "cond_trigger": {},
+    "cond_consequent": {},
+    "is_grouped": false,
+    "group_operator": null,
+    "sub_rules": [],
+    "is_optional": false,
+    "escalation_config": {}
+  },
+  {
+    "raw_text": "- must include #StarbucksPartner",
+    "rule_type": "required_hashtag",
+    "target": "#StarbucksPartner",
+    "severity": "CRITICAL",
+    "sources": [],
+    "is_conditional": false,
+    "cond_trigger": {},
+    "cond_consequent": {},
+    "is_grouped": false,
+    "group_operator": null,
+    "sub_rules": [],
+    "is_optional": false,
+    "escalation_config": {}
+  },
+  {
+    "raw_text": "- no competitor mentions",
+    "rule_type": "no_competitors",
+    "target": null,
+    "severity": "CRITICAL",
+    "sources": [],
+    "is_conditional": false,
+    "cond_trigger": {},
+    "cond_consequent": {},
+    "is_grouped": false,
+    "group_operator": null,
+    "sub_rules": [],
+    "is_optional": false,
+    "escalation_config": {}
+  },
+  {
+    "raw_text": "- avoid overly promotional wording",
+    "rule_type": "avoid_promo",
+    "target": null,
+    "severity": "WARNING",
+    "sources": [],
+    "is_conditional": false,
+    "cond_trigger": {},
+    "cond_consequent": {},
+    "is_grouped": false,
+    "group_operator": null,
+    "sub_rules": [],
+    "is_optional": false,
+    "escalation_config": {}
+  }
+]

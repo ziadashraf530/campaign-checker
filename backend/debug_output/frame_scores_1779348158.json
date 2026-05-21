@@ -1,0 +1,13 @@
+[
+  {
+    "frame_id": "target_blue_pos.png",
+    "max_similarity": 0.9958,
+    "avg_similarity": 0.9883,
+    "top_k_avg": 0.9958,
+    "best_reference": "blue_3.png",
+    "best_reference_similarity": 0.9958,
+    "smoothed_similarity": 0.98,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.9958
+  }
+]

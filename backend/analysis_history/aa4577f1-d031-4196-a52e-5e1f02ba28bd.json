@@ -1,0 +1,374 @@
+{
+  "analysis_id": "aa4577f1-d031-4196-a52e-5e1f02ba28bd",
+  "timestamp": "2026-05-21T09:19:33.309039Z",
+  "campaign_name": "Starbucks",
+  "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images",
+  "target_path": "N:\\Coverage Team\\Starbucks ( Mr Beast ) - Visit - HighestPlatform - KSA - Feb - 2026\\hasan32en\\tiktok\\ssstik.io_@hasan32en_1771236959544.mp4",
+  "caption": "Best coffee ever ☕ Try Starbucks today! #StarbucksPartner @Starbucks",
+  "rules": "- must mention @Starbucks\n- must include #StarbucksPartner\n- no competitor mentions\n- avoid overly promotional wording",
+  "file": "N:\\Coverage Team\\Starbucks ( Mr Beast ) - Visit - HighestPlatform - KSA - Feb - 2026\\hasan32en\\tiktok\\ssstik.io_@hasan32en_1771236959544.mp4",
+  "filename": "ssstik.io_@hasan32en_1771236959544.mp4",
+  "campaign_match": true,
+  "match_type": "STRONG_MATCH",
+  "verdict": "Relevant",
+  "confidence": 0.9361,
+  "confidence_pct": 93.6,
+  "top_similarity": 0.8083,
+  "average_similarity": 0.6807,
+  "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+  "best_frame": "keyframe_000000.jpg",
+  "num_references": 18,
+  "num_frames_analyzed": 9,
+  "reference_variance": 0.031,
+  "threshold_used": 0.7967,
+  "frame_scores": [
+    {
+      "frame_id": "keyframe_000000.jpg",
+      "max_similarity": 0.8083,
+      "avg_similarity": 0.7367,
+      "top_k_avg": 0.7958,
+      "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+      "best_reference_similarity": 0.8083,
+      "smoothed_similarity": 0.7529,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.8066
+    },
+    {
+      "frame_id": "keyframe_000060.jpg",
+      "max_similarity": 0.6607,
+      "avg_similarity": 0.6206,
+      "top_k_avg": 0.6401,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6607,
+      "smoothed_similarity": 0.6219,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6583
+    },
+    {
+      "frame_id": "keyframe_000120.jpg",
+      "max_similarity": 0.6582,
+      "avg_similarity": 0.6133,
+      "top_k_avg": 0.6428,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6582,
+      "smoothed_similarity": 0.5974,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6581
+    },
+    {
+      "frame_id": "keyframe_000180.jpg",
+      "max_similarity": 0.6402,
+      "avg_similarity": 0.6057,
+      "top_k_avg": 0.6339,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6402,
+      "smoothed_similarity": 0.5758,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6449
+    },
+    {
+      "frame_id": "keyframe_000240.jpg",
+      "max_similarity": 0.7661,
+      "avg_similarity": 0.7084,
+      "top_k_avg": 0.7464,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.7661,
+      "smoothed_similarity": 0.637,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.7623
+    },
+    {
+      "frame_id": "keyframe_000300.jpg",
+      "max_similarity": 0.6617,
+      "avg_similarity": 0.5662,
+      "top_k_avg": 0.6297,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6617,
+      "smoothed_similarity": 0.5747,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6526
+    },
+    {
+      "frame_id": "keyframe_000360.jpg",
+      "max_similarity": 0.6471,
+      "avg_similarity": 0.6031,
+      "top_k_avg": 0.6395,
+      "best_reference": "OIP (2).webp",
+      "best_reference_similarity": 0.6471,
+      "smoothed_similarity": 0.5396,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6509
+    },
+    {
+      "frame_id": "keyframe_000420.jpg",
+      "max_similarity": 0.6381,
+      "avg_similarity": 0.5768,
+      "top_k_avg": 0.6354,
+      "best_reference": "OIP.webp",
+      "best_reference_similarity": 0.6381,
+      "smoothed_similarity": 0.4998,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6452
+    },
+    {
+      "frame_id": "keyframe_000480.jpg",
+      "max_similarity": 0.6461,
+      "avg_similarity": 0.5678,
+      "top_k_avg": 0.6288,
+      "best_reference": "OIP (3).webp",
+      "best_reference_similarity": 0.6461,
+      "smoothed_similarity": 0.4926,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.6419
+    }
+  ],
+  "top_matches": [
+    {
+      "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+      "similarity": 0.8083,
+      "rank": 1
+    },
+    {
+      "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (1).jpeg",
+      "similarity": 0.7919,
+      "rank": 2
+    },
+    {
+      "reference_name": "OIP (3).webp",
+      "similarity": 0.7896,
+      "rank": 3
+    },
+    {
+      "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42.jpeg",
+      "similarity": 0.7871,
+      "rank": 4
+    },
+    {
+      "reference_name": "download.webp",
+      "similarity": 0.7685,
+      "rank": 5
+    }
+  ],
+  "processing_time_ms": 2718.2,
+  "temporal_strength": 0.7699,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "explainability": {
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_frame": "keyframe_000000.jpg",
+    "temporal_strength": 0.7699,
+    "competitor_overlap": 0.0,
+    "best_competitor": "",
+    "ambiguity_score": 0.0,
+    "ambiguity_reason": "SOCIAL OPTIMIZATION: Applied +0.08 sequence-level confidence adjustment for vertical/UI format.",
+    "warnings": [
+      "SOCIAL OPTIMIZATION: Applied +0.08 sequence-level confidence adjustment for vertical/UI format.",
+      "BRANDING BOOST: Applied +0.05 sequence-level product-centric focus boost."
+    ],
+    "top_positive_matches": [
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+        "similarity": 0.8083,
+        "rank": 1
+      },
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (1).jpeg",
+        "similarity": 0.7919,
+        "rank": 2
+      },
+      {
+        "reference_name": "OIP (3).webp",
+        "similarity": 0.7896,
+        "rank": 3
+      },
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42.jpeg",
+        "similarity": 0.7871,
+        "rank": 4
+      },
+      {
+        "reference_name": "download.webp",
+        "similarity": 0.7685,
+        "rank": 5
+      }
+    ],
+    "reasoning_steps": [
+      "Reference bank loaded with 18 campaign positive images. Intra-set centroid matching active.",
+      "Category-aware matching: Query mapped to reference cluster 'logo_refs' with 0.8108 centroid similarity.",
+      "Video input: sampled and generated SigLIP embeddings for 9 frames. Suppressed visual duplicates and motion-blurred frames.",
+      "Highest similarity found with campaign positive 'WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg' (max similarity: 0.8083).",
+      "Competitor database inactive or empty. Distractor penalty bypassed.",
+      "Social format adjustment: Applied +0.08 confidence boost due to vertical screenshot layout/UI overlay.",
+      "Product-centric boost: Applied +0.05 brand focus boost for dominant logo/product matching with low competitor overlap.",
+      "Sigmoid Platt scaling calibrated raw fused visual similarity into a probability space. Calibrated Confidence: 93.6% (Midpoint aligned with target matching thresholds).",
+      "Applied sequence-level Bartlett filtering (window = 5) and suppressed isolated spike frames. Calculated temporal continuity strength: 0.7699.",
+      "VERDICT CONFIRMED: Calibrated confidence (93.6%) exceeds target threshold (64.7%). Target matches the campaign positive references."
+    ],
+    "dominant_cluster": "logo_refs",
+    "cluster_similarity": 0.8108,
+    "social_adjustment": 0.08,
+    "product_boost": 0.05
+  },
+  "stable_segments": [
+    {
+      "start_frame": 0,
+      "end_frame": 6,
+      "duration_frames": 7,
+      "average_score": 0.6879
+    }
+  ],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 0.5625,
+    "has_overlays": true,
+    "compression_level": 0.5393,
+    "suggested_threshold_offset": -0.0733,
+    "reasoning": "Subtitle text detected, Vertical layout detected, Social UI overlay elements detected, High compression artifacts present, Mobile screenshot indicators detected"
+  },
+  "dominant_cluster": "store_refs",
+  "cluster_similarity": 0.0,
+  "social_adjustment": 0.0,
+  "product_boost": 0.0,
+  "compliance_status": "PASS",
+  "compliance_score": 100,
+  "score": 100,
+  "passed_rules": [
+    "Successfully matched mention @Starbucks in caption.",
+    "Successfully matched hashtag #StarbucksPartner in caption.",
+    "No competitor brands found in caption, ocr, speech.",
+    "Maintained clean non-promotional brand voice."
+  ],
+  "violations": [],
+  "warnings": [],
+  "rules_detailed": [
+    {
+      "raw_text": "- must mention @Starbucks",
+      "rule_type": "required_mention",
+      "target": "@Starbucks",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": "caption",
+      "details": "Successfully matched mention @Starbucks in caption.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- must include #StarbucksPartner",
+      "rule_type": "required_hashtag",
+      "target": "#StarbucksPartner",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": "caption",
+      "details": "Successfully matched hashtag #StarbucksPartner in caption.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- no competitor mentions",
+      "rule_type": "no_competitors",
+      "target": "",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": null,
+      "details": "No competitor brands found in caption, ocr, speech.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- avoid overly promotional wording",
+      "rule_type": "avoid_promo",
+      "target": "",
+      "severity": "WARNING",
+      "passed": true,
+      "match_source": null,
+      "details": "Maintained clean non-promotional brand voice.",
+      "is_optional": false
+    }
+  ],
+  "ocr_text": [
+    "ستلابخسا",
+    "honui"
+  ],
+  "ocr_blocks": [
+    {
+      "text": "ستلابخسا",
+      "confidence": 0.4021,
+      "box": [
+        [
+          333.0,
+          239.0
+        ],
+        [
+          576.0,
+          239.0
+        ],
+        [
+          576.0,
+          300.0
+        ],
+        [
+          333.0,
+          300.0
+        ]
+      ]
+    },
+    {
+      "text": "honui",
+      "confidence": 0.9172,
+      "box": [
+        [
+          358.0,
+          206.0
+        ],
+        [
+          428.0,
+          206.0
+        ],
+        [
+          428.0,
+          238.0
+        ],
+        [
+          358.0,
+          238.0
+        ]
+      ]
+    }
+  ],
+  "ocr_explainability": {
+    "ocr_blocks_count": 2,
+    "compliance_score": 100,
+    "compliance_status": "PASS",
+    "violations_breakdown": {
+      "critical": 0,
+      "warning": 0,
+      "info": 0
+    },
+    "reasoning_steps": [
+      "Policy evaluation and visual analysis triggered: successfully scanned target visual components. Extracted 2 text bounding boxes with confidence levels.",
+      "Normalized on-screen overlay text detected: ستلابخسا, honui",
+      "Compliance Policy evaluated: score calculated at 100/100. Status: PASS. Violations breakdown: 0 CRITICAL, 0 WARNING, 0 INFO.",
+      "COMPLIANT [CRITICAL]: '- must mention @Starbucks' passed. Matched on: caption",
+      "COMPLIANT [CRITICAL]: '- must include #StarbucksPartner' passed. Matched on: caption"
+    ]
+  },
+  "thumbnails": [],
+  "model_version": "google/siglip-base-patch16-224",
+  "threshold_version": "v1.2-adaptive",
+  "policy_version": "v2.0-compliance",
+  "ocr_version": "easyocr-1.7",
+  "reviewer_notes": "",
+  "reviewed_by": "",
+  "review_status": "APPROVED",
+  "stored": true,
+  "report_exportable": true,
+  "history_available": true,
+  "reasoning": []
+}

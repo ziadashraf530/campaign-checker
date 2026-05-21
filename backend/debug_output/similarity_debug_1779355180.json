@@ -1,0 +1,42 @@
+{
+  "timestamp": 1779355180,
+  "type": "video",
+  "campaign_match": true,
+  "confidence": 0.98,
+  "match_type": "STRONG_MATCH",
+  "top_similarity": 0.8166,
+  "average_similarity": 0.7702,
+  "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+  "best_frame": "keyframe_000408.jpg",
+  "threshold_used": 0.7975,
+  "reference_variance": 0.031,
+  "num_references": 18,
+  "num_frames": 8,
+  "processing_time_ms": 1978.5,
+  "stable_segments": [
+    {
+      "start_frame": 0,
+      "end_frame": 7,
+      "duration_frames": 8,
+      "average_score": 0.7642
+    }
+  ],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 0.5625,
+    "has_overlays": true,
+    "compression_level": 0.4055,
+    "suggested_threshold_offset": -0.0725,
+    "reasoning": "Subtitle text detected, Vertical layout detected, Social UI overlay elements detected, High compression artifacts present, Mobile screenshot indicators detected"
+  }
+}

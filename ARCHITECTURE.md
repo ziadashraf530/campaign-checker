@@ -149,11 +149,82 @@ Rather than flat static levels, thresholds are computed dynamically based on the
 - **Telemetry Archiver**: Diagnostic logging tracks near-misses, high-competitor encroachment cases, and rapid visual spike anomalies.
 - **Disk Archiving**: Automatically serializes near-boundary queries, compressed target embeddings (`.npz` matrices), scores, thresholds, and metadata under a structured storage folder: `embedding_cache/failure_cases/`.
 
+## 2.11 Caption & Campaign Brief Compliance Analysis Layer (`ComplianceEngine` & `OCREngine`)
+To complement visual campaign matching, a multilingual OCR and text analysis system verifies social media post captions and on-screen overlays/subtitles against brand campaign briefs. This engine runs only on target content that successfully matches the reference bank (i.e. visual `STRONG_MATCH` or `POSSIBLE_MATCH` verdicts).
+
+```
+                      ┌────────────────────────────────────┐
+                      │ Target Content Matching Candidate │
+                      └─────────────────┬──────────────────┘
+                                        │
+                                        ▼
+                      ┌────────────────────────────────────┐
+                      │    FastAPI Compliance Orchestrator │
+                      │       (compliance_engine.py)       │
+                      └───────────┬──────────────────┬─────┘
+                                  │                  │
+           (Post Captions)        │                  │ (Images / Keyframes)
+                                  ▼                  ▼
+    ┌───────────────────────────────┐      ┌───────────────────────────────┐
+    │    Commercial Promo Scanner   │      │     Lazy-Loaded EasyOCR       │
+    │     (promo_detector.py)       │      │      (ocr_engine.py)          │
+    └───────────────┬───────────────┘      └───────────────┬───────────────┘
+                    │                                      │
+                    │ (Promo Scores)                       │ (Raw Text Blocks)
+                    │                                      ▼
+                    │                      ┌───────────────────────────────┐
+                    │                      │   Arabic/EN OCR Normalizer    │
+                    │                      │     (ocr_normalizer.py)       │
+                    └───────────────┐      └───────────────┬───────────────┘
+                                    │                      │
+                                    │                      │ (Standardized Text)
+                                    ▼                      ▼
+                      ┌────────────────────────────────────┐
+                      │       Unified Evidence Payload     │
+                      │         (ComplianceEvidence)       │
+                      └─────────────────┬──────────────────┘
+                                        │
+                                        ▼
+                      ┌────────────────────────────────────┐
+                      │        Severity-Aware Evaluator    │
+                      │         (rule_evaluator.py)        │
+                      │  - CRITICAL (-20), WARNING (-10)   │
+                      │  - Positive Brand Whitelisting     │
+                      └─────────────────┬──────────────────┘
+                                        │
+                                        ▼
+                      ┌────────────────────────────────────┐
+                      │     JSON Diagnostic Report Trace   │
+                      │     - score, ocr_text, detailed    │
+                      │     - ocr_explainability console   │
+                      └────────────────────────────────────┘
+```
+
+- **Multilingual OCR Engine (`ocr_engine.py`)**: A wrapper utilizing lazy-loaded `easyocr` (supporting Arabic and English detection). Runs OCR on visual targets (or video keyframe frames), caches transcribed blocks locally by image hash, and returns bounding box details, text strings, and detection confidences.
+- **Arabic and English OCR Normalizer (`ocr_normalizer.py`)**: A dedicated text standardization pipeline that bridges OCR spelling variations and dialects:
+  - Collapses repeated characters (e.g. `ككككافية` -> `كافية`).
+  - Standardizes variant Alifs (`أإآ` -> `ا`).
+  - Standardizes Ta Marbuta to Ha (`ة` -> `ه`).
+  - Maps Yaa to Alif Maksura (`ي` -> `ى`) to reconcile common visual character recognition slips.
+  - Cleans non-alphanumeric noise and deduplicates phrases.
+- **Rule Extraction Parser (`rule_parser.py`)**: Tokenizes campaign briefs, matching rules against regular expressions, and parsing custom rule severity levels (`[CRITICAL]`, `[WARNING]`, `[INFO]`).
+- **Rule Evaluator (`rule_evaluator.py`)**: Fuses the multi-source evidence (captions, OCR overlay tags, subtitles) into a `ComplianceEvidence` data structure.
+  - **Positive Brand Whitelisting**: Extracts brand keywords from rules (e.g., `@Starbucks`) and whitelists them, ensuring the system does not self-flag brand text/logos recognized in OCR overlays as competitors.
+  - **Severity-Mapped Deductions**: Deducts points depending on rule severity:
+    - `CRITICAL` failure: `-20 points` each.
+    - `WARNING` failure: `-10 points` each.
+    - `INFO` failure: `0 points` (no deduction).
+  - **Grading Scale**:
+    - **PASS** (Score = 100): Perfect compliance.
+    - **PARTIAL** (70 <= Score < 100): Minor infractions or warning flags.
+    - **FAIL** (Score < 70): Critical compliance violations or competitor brand presence.
+- **Retrieval Debugger (`retrieval_debugger.py`)**: Compiles compliance logs, OCR confidence intervals, bounding box mappings, and rule checks into a formatted terminal console output (`ocr_explainability`), showing exactly how decisions were reached.
+
 ---
 
 ## 3. Technology Stack & API Details
 
-- **Backend**: FastAPI, PyTorch, Transformers, OpenCV, NumPy.
+- **Backend**: FastAPI, PyTorch, Transformers, EasyOCR, OpenCV, NumPy.
 - **Frontend**: Vite, React, Axios, Vanilla CSS (Premium Glassmorphism + Dark Mode), FontAwesome.
 - **Visual Timelines**: Real-time rendering via responsive `<svg viewBox="...">` markup with animated glows, legend indicators, and hoverable detail tooltips.
 - **API Endpoint**: `POST /campaign-match/`
@@ -163,7 +234,9 @@ Rather than flat static levels, thresholds are computed dynamically based on the
       "reference_path": "data/campaign_refs",
       "target_path": "data/target_content",
       "campaign_name": "summer_promo",
-      "debug": true
+      "debug": true,
+      "caption": "Check out my new morning routine with @Starbucks! Perfect way to start the day. #StarbucksPartner",
+      "rules": "Must include mention: @Starbucks [CRITICAL]\nMust include hashtag: #StarbucksPartner [CRITICAL]\nDo not mention competitors [CRITICAL]\nAvoid promotional tone [WARNING]"
     }
     ```
   - Response:
@@ -172,36 +245,55 @@ Rather than flat static levels, thresholds are computed dynamically based on the
       "campaign_name": "Starbucks Campaign",
       "results": [
         {
-          "file": "promo_video.mp4",
+          "file": "promo_image.png",
+          "filename": "promo_image.png",
+          "campaign_match": true,
           "verdict": "STRONG_MATCH",
-          "confidence": 0.8942,
-          "top_similarity": 0.9412,
-          "average_similarity": 0.8754,
+          "confidence": 0.9520,
+          "top_similarity": 0.9650,
+          "average_similarity": 0.8910,
           "threshold_used": 0.7250,
-          "num_frames_analyzed": 10,
-          "processing_time_ms": 240,
+          "num_frames_analyzed": 1,
+          "processing_time_ms": 312,
           "best_reference": "starbucks_logo_cup.png",
-          "competitor_similarity": 0.5420,
-          "ambiguity_score": 0.1230,
+          "competitor_similarity": 0.4510,
+          "ambiguity_score": 0.0890,
           "warnings": [],
-          "frame_scores": [
+          "compliance_status": "PASS",
+          "score": 100,
+          "compliance_score": 100,
+          "passed_rules": [
+            "Included phrase '@Starbucks' in caption.",
+            "Included phrase '#StarbucksPartner' in caption.",
+            "No competitor brand mentions detected."
+          ],
+          "violations": [],
+          "warnings": [],
+          "rules_detailed": [
             {
-              "frame_id": "frame_0000",
-              "max_similarity": 0.9102,
-              "raw_score": 0.9102,
-              "smoothed_similarity": 0.8950,
-              "competitor_similarity": 0.5100,
-              "best_reference": "starbucks_logo_cup.png"
+              "raw_text": "Must include mention: @Starbucks [CRITICAL]",
+              "rule_type": "required_mention",
+              "target": "@starbucks",
+              "severity": "CRITICAL",
+              "passed": true,
+              "match_source": "caption",
+              "details": "Included phrase '@Starbucks' in caption."
             }
           ],
-          "top_matches": [
+          "ocr_text": [
+            "starbucks",
+            "coffee"
+          ],
+          "ocr_blocks": [
             {
-              "rank": 1,
-              "reference_name": "starbucks_logo_cup.png",
-              "similarity": 0.9412
+              "text": "Starbucks",
+              "confidence": 0.985,
+              "box": [[10, 10], [100, 10], [100, 40], [10, 40]]
             }
-          ]
+          ],
+          "ocr_explainability": "======================================================================\nOCR & CAPTION COMPLIANCE DIAGNOSTIC LOGS\n======================================================================\n[COMPLIANCE GRADE] PASS (Score: 100/100)\n..."
         }
       ]
     }
     ```
+

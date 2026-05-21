@@ -1,0 +1,13 @@
+[
+  {
+    "frame_id": "Screenshot 2026-02-16 121424.png",
+    "max_similarity": 0.6892,
+    "avg_similarity": 0.6296,
+    "top_k_avg": 0.6733,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6892,
+    "smoothed_similarity": 0.4357,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6876
+  }
+]

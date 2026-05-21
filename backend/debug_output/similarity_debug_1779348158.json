@@ -1,0 +1,37 @@
+{
+  "timestamp": 1779348158,
+  "type": "single_image",
+  "campaign_match": true,
+  "confidence": 0.98,
+  "match_type": "STRONG_MATCH",
+  "top_similarity": 0.9958,
+  "average_similarity": 0.9883,
+  "best_reference": "blue_3.png",
+  "best_frame": "target_blue_pos.png",
+  "threshold_used": 0.85,
+  "reference_variance": 0.0031,
+  "num_references": 4,
+  "num_frames": 1,
+  "processing_time_ms": 331.2,
+  "stable_segments": [],
+  "cohesion_metrics": {
+    "cluster_quality": "EXCELLENT",
+    "intra_similarity_mean": 0.9847,
+    "intra_similarity_std": 0.0078,
+    "silhouette_score": 0.9693,
+    "outliers": [],
+    "recommendations": [
+      "Campaign references are highly cohesive. Decision boundaries will be narrow and robust."
+    ]
+  },
+  "media_context": {
+    "is_social_media": false,
+    "aspect_ratio": 1.0,
+    "has_overlays": false,
+    "is_mobile_screenshot": false,
+    "has_subtitles": false,
+    "compression_level": 0.0,
+    "suggested_threshold_offset": 0.0,
+    "reasoning": "Standard horizontal layout"
+  }
+}

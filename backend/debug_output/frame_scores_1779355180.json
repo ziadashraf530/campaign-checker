@@ -1,0 +1,90 @@
+[
+  {
+    "frame_id": "keyframe_000000.jpg",
+    "max_similarity": 0.7945,
+    "avg_similarity": 0.7331,
+    "top_k_avg": 0.7779,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.7945,
+    "smoothed_similarity": 0.8442,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.7922
+  },
+  {
+    "frame_id": "keyframe_000060.jpg",
+    "max_similarity": 0.8081,
+    "avg_similarity": 0.737,
+    "top_k_avg": 0.7984,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.8081,
+    "smoothed_similarity": 0.8193,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.808
+  },
+  {
+    "frame_id": "keyframe_000120.jpg",
+    "max_similarity": 0.7732,
+    "avg_similarity": 0.7094,
+    "top_k_avg": 0.7559,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.7732,
+    "smoothed_similarity": 0.7791,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.77
+  },
+  {
+    "frame_id": "keyframe_000180.jpg",
+    "max_similarity": 0.6601,
+    "avg_similarity": 0.5827,
+    "top_k_avg": 0.6227,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6601,
+    "smoothed_similarity": 0.7154,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6475
+  },
+  {
+    "frame_id": "keyframe_000240.jpg",
+    "max_similarity": 0.7867,
+    "avg_similarity": 0.7101,
+    "top_k_avg": 0.7665,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.7867,
+    "smoothed_similarity": 0.7607,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.7818
+  },
+  {
+    "frame_id": "keyframe_000300.jpg",
+    "max_similarity": 0.7726,
+    "avg_similarity": 0.71,
+    "top_k_avg": 0.7497,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.7726,
+    "smoothed_similarity": 0.7831,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.7699
+  },
+  {
+    "frame_id": "keyframe_000360.jpg",
+    "max_similarity": 0.7501,
+    "avg_similarity": 0.692,
+    "top_k_avg": 0.7264,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.7501,
+    "smoothed_similarity": 0.801,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.743
+  },
+  {
+    "frame_id": "keyframe_000408.jpg",
+    "max_similarity": 0.8166,
+    "avg_similarity": 0.7409,
+    "top_k_avg": 0.7784,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.8166,
+    "smoothed_similarity": 0.8295,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.8086
+  }
+]

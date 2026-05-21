@@ -1,0 +1,13 @@
+[
+  {
+    "frame_id": "target_red_neg.png",
+    "max_similarity": 0.8459,
+    "avg_similarity": 0.8418,
+    "top_k_avg": 0.8459,
+    "best_reference": "blue_2.png",
+    "best_reference_similarity": 0.8459,
+    "smoothed_similarity": 0.922,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.8459
+  }
+]

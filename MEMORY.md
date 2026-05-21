@@ -50,3 +50,44 @@ This document acts as a persistent repository-level memory, preserving critical 
 
 - **SentencePiece**: HuggingFace's SigLIP processor uses the `SiglipTokenizer` which depends directly on the `sentencepiece` and `protobuf` libraries. These must always be present in any environment deploying the engine.
 - **PyTorch**: Local model inference relies on PyTorch (`torch` and `torchvision`). Auto-sensing will direct tasks to `cuda` if an NVIDIA GPU is active, falling back safely to `cpu`.
+
+---
+
+## 6. Caption & Brief Compliance Layer (OCR-Powered Content Compliance & QA)
+
+### 6.1 Decoupling Invariant
+- The compliance layer is a **secondary post-verification layer** that operates **after** visual matching succeeds.
+- OCR text extraction and text matching have **zero impact** on visual matching thresholds, cosine similarities, confidence calibration, or competitor suppression.
+- If visual match result is `NO_MATCH`, compliance is automatically set to `NOT_EVALUATED` with score `0`.
+- Heavy OCR engine components (`easyocr`) must **never** load at startup; they are lazy-loaded on demand during compliance evaluation to ensure instant API startup.
+
+### 6.2 Processing & Normalization Model
+- **Multilingual OCR Support**: EasyOCR handles both English and Arabic text extractions. Extracted words are cached by image hashes.
+- **Arabic OCR Normalization Pipeline**: Custom standardizations in `ocr_normalizer.py` handle Arabic character variations:
+  - Collapses repeated characters (e.g. `ككككافية` -> `كافية`).
+  - Standardizes Variant Alifs (`أإآ` -> `ا`).
+  - Converts Ta Marbuta to Ha (`ة` -> `ه`).
+  - Standardizes Yaa to Alif Maksura (`ي` -> `ى`) to handle common OCR classification slips.
+- **Brand Whitelisting & Exclusions**: To prevent positive brand mentions/logos detected in the image via OCR from triggering competitor mentions, positive brands from the template are automatically whitelisted.
+
+### 6.3 Severity-Based Scoring Formula
+- Rules are parsed with custom severity tags (`CRITICAL`, `WARNING`, `INFO`). If no severity is supplied, it is auto-assigned based on the rule type.
+- Base score: `100`
+- Score deductions are determined by severity levels rather than hardcoded rules:
+  - **CRITICAL** failure: `-20 pts` each (e.g. missing critical hashtag/mention, competitor brand detected, forbidden term).
+  - **WARNING** failure: `-10 pts` each (e.g. promotional tone detected, warning term found).
+  - **INFO** failure: `0 pts` (no deduction).
+- Final score clamped to `[0, 100]`
+- Status thresholds: `PASS` (score = 100), `PARTIAL` (score 70–99), `FAIL` (score < 70).
+
+### 6.4 Rule Types & Severity Mappings
+| Rule Type | Default Severity | Example |
+|---|---|---|
+| `required_mention` | `CRITICAL` | `- must mention @Starbucks [CRITICAL]` |
+| `required_hashtag` | `CRITICAL` | `- must include #StarbucksPartner [CRITICAL]` |
+| `no_competitors` | `CRITICAL` | `- no competitor mentions [CRITICAL]` |
+| `avoid_promo` | `WARNING` | `- avoid overly promotional wording [WARNING]` |
+| `forbidden_term` | `CRITICAL` | `- no plastic straws [CRITICAL]` |
+| `warning_term` | `WARNING` | `- avoid sugar [WARNING]` |
+| `required_term` | `CRITICAL` | `- include seasonal holiday drink [CRITICAL]` |
+

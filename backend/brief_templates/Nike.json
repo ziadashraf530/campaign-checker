@@ -1,0 +1,38 @@
+{
+  "name": "Nike",
+  "caption": "Pushing past limits every single morning with my running crew. Just showing up is half the battle. 🏃‍♂️💨 @Nike #JustDoIt",
+  "rules": "Must include mention: @Nike\nMust include hashtag: #JustDoIt\nDo not mention competitors in OCR\nIF OCR contains \"sale\" THEN caption must contain \"#Ad\"\nRequire @Nike in caption OR OCR\nIf 3 warnings then FAIL",
+  "required_mentions": ["@Nike"],
+  "required_hashtags": ["#JustDoIt"],
+  "forbidden_terms": ["discount code"],
+  "promo_restrictions": ["avoid promotional tone"],
+  "severity_levels": {
+    "competitor": "CRITICAL",
+    "forbidden_term": "CRITICAL",
+    "required_mention": "CRITICAL",
+    "required_hashtag": "CRITICAL",
+    "promo_restrictions": "WARNING",
+    "warning_term": "WARNING"
+  },
+  "conditional_rules": [
+    {
+      "trigger": { "source": "ocr", "condition": "contains", "value": "sale" },
+      "consequent": { "source": "caption", "condition": "contains", "value": "#Ad" },
+      "severity": "CRITICAL"
+    }
+  ],
+  "cross_source_rules": [
+    {
+      "rules": [
+        { "rule_type": "required_mention", "target": "@Nike", "source": "caption" },
+        { "rule_type": "required_mention", "target": "Nike", "source": "ocr" }
+      ],
+      "operator": "OR",
+      "severity": "CRITICAL",
+      "description": "Require brand mention in caption OR OCR"
+    }
+  ],
+  "severity_escalations": [
+    { "trigger": "warnings_count", "threshold": 3, "action": "FAIL" }
+  ]
+}

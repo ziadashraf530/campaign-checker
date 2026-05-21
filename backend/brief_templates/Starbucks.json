@@ -1,0 +1,44 @@
+{
+  "name": "Starbucks",
+  "caption": "My fresh daily ritual starts at @Starbucks! Fueling my day with the best beverage. ☕✨ #StarbucksPartner",
+  "rules": "Must include mention: @Starbucks\nMust include hashtag: #StarbucksPartner\nDo not mention competitors in OCR\nIF OCR contains \"discount\" THEN caption must contain \"#Ad\"\nRequire @Starbucks in caption OR OCR\nIf 3 warnings then FAIL",
+  "required_mentions": ["@Starbucks"],
+  "required_hashtags": ["#StarbucksPartner"],
+  "forbidden_terms": ["plastic straws"],
+  "promo_restrictions": ["avoid promotional tone"],
+  "severity_levels": {
+    "competitor": "CRITICAL",
+    "forbidden_term": "CRITICAL",
+    "required_mention": "CRITICAL",
+    "required_hashtag": "CRITICAL",
+    "promo_restrictions": "WARNING",
+    "warning_term": "WARNING"
+  },
+  "conditional_rules": [
+    {
+      "trigger": { "source": "ocr", "condition": "contains", "value": "discount" },
+      "consequent": { "source": "caption", "condition": "contains", "value": "#Ad" },
+      "severity": "CRITICAL"
+    },
+    {
+      "trigger": { "condition": "promo_detected" },
+      "consequent": { "source": "caption", "condition": "contains", "value": "@Starbucks" },
+      "severity": "WARNING"
+    }
+  ],
+  "cross_source_rules": [
+    {
+      "rules": [
+        { "rule_type": "required_mention", "target": "@Starbucks", "source": "caption" },
+        { "rule_type": "required_mention", "target": "Starbucks", "source": "ocr" }
+      ],
+      "operator": "OR",
+      "severity": "CRITICAL",
+      "description": "Require brand mention in caption OR OCR"
+    }
+  ],
+  "severity_escalations": [
+    { "trigger": "warnings_count", "threshold": 3, "action": "FAIL" },
+    { "trigger": "repeated_violation", "rule_type": "forbidden_term", "action": "escalate_severity" }
+  ]
+}

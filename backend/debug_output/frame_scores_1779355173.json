@@ -1,0 +1,13 @@
+[
+  {
+    "frame_id": "Screenshot 2026-02-10 201722.png",
+    "max_similarity": 0.7702,
+    "avg_similarity": 0.6909,
+    "top_k_avg": 0.7473,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.7702,
+    "smoothed_similarity": 0.7889,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.764
+  }
+]

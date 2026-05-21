@@ -1,0 +1,101 @@
+[
+  {
+    "frame_id": "keyframe_000000.jpg",
+    "max_similarity": 0.8083,
+    "avg_similarity": 0.7367,
+    "top_k_avg": 0.7958,
+    "best_reference": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "best_reference_similarity": 0.8083,
+    "smoothed_similarity": 0.7529,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.8066
+  },
+  {
+    "frame_id": "keyframe_000060.jpg",
+    "max_similarity": 0.6607,
+    "avg_similarity": 0.6206,
+    "top_k_avg": 0.6401,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6607,
+    "smoothed_similarity": 0.6219,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6583
+  },
+  {
+    "frame_id": "keyframe_000120.jpg",
+    "max_similarity": 0.6582,
+    "avg_similarity": 0.6133,
+    "top_k_avg": 0.6428,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6582,
+    "smoothed_similarity": 0.5974,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6581
+  },
+  {
+    "frame_id": "keyframe_000180.jpg",
+    "max_similarity": 0.6402,
+    "avg_similarity": 0.6057,
+    "top_k_avg": 0.6339,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6402,
+    "smoothed_similarity": 0.5758,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6449
+  },
+  {
+    "frame_id": "keyframe_000240.jpg",
+    "max_similarity": 0.7661,
+    "avg_similarity": 0.7084,
+    "top_k_avg": 0.7464,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.7661,
+    "smoothed_similarity": 0.637,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.7623
+  },
+  {
+    "frame_id": "keyframe_000300.jpg",
+    "max_similarity": 0.6617,
+    "avg_similarity": 0.5662,
+    "top_k_avg": 0.6297,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6617,
+    "smoothed_similarity": 0.5747,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6526
+  },
+  {
+    "frame_id": "keyframe_000360.jpg",
+    "max_similarity": 0.6471,
+    "avg_similarity": 0.6031,
+    "top_k_avg": 0.6395,
+    "best_reference": "OIP (2).webp",
+    "best_reference_similarity": 0.6471,
+    "smoothed_similarity": 0.5396,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6509
+  },
+  {
+    "frame_id": "keyframe_000420.jpg",
+    "max_similarity": 0.6381,
+    "avg_similarity": 0.5768,
+    "top_k_avg": 0.6354,
+    "best_reference": "OIP.webp",
+    "best_reference_similarity": 0.6381,
+    "smoothed_similarity": 0.4998,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6452
+  },
+  {
+    "frame_id": "keyframe_000480.jpg",
+    "max_similarity": 0.6461,
+    "avg_similarity": 0.5678,
+    "top_k_avg": 0.6288,
+    "best_reference": "OIP (3).webp",
+    "best_reference_similarity": 0.6461,
+    "smoothed_similarity": 0.4926,
+    "competitor_similarity": 0.0,
+    "raw_score": 0.6419
+  }
+]

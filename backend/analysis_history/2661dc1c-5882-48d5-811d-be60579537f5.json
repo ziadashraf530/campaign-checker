@@ -1,0 +1,825 @@
+{
+  "analysis_id": "2661dc1c-5882-48d5-811d-be60579537f5",
+  "timestamp": "2026-05-21T11:10:23.406466Z",
+  "campaign_name": "Starbucks",
+  "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images",
+  "target_path": "C:\\Users\\ai-03\\Desktop\\New folder\\WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+  "caption": "Best coffee ever ☕ Try Starbucks today! #StarbucksPartner @Starbucks",
+  "rules": "- must mention @Starbucks\n- must include #StarbucksPartner\n- no competitor mentions\n- avoid overly promotional wording",
+  "file": "C:\\Users\\ai-03\\Desktop\\New folder\\WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+  "filename": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+  "campaign_match": true,
+  "match_type": "POSSIBLE_MATCH",
+  "verdict": "Uncertain",
+  "confidence": 0.6575,
+  "confidence_pct": 65.8,
+  "top_similarity": 0.7677,
+  "average_similarity": 0.6572,
+  "best_reference": "OIP (7).webp",
+  "best_frame": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+  "num_references": 18,
+  "num_frames_analyzed": 1,
+  "reference_variance": 0.031,
+  "threshold_used": 0.86,
+  "frame_scores": [
+    {
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+      "max_similarity": 0.7677,
+      "avg_similarity": 0.6572,
+      "top_k_avg": 0.7521,
+      "best_reference": "OIP (7).webp",
+      "best_reference_similarity": 0.7677,
+      "smoothed_similarity": 0.6575,
+      "competitor_similarity": 0.0,
+      "raw_score": 0.7664
+    }
+  ],
+  "top_matches": [
+    {
+      "reference_name": "OIP (7).webp",
+      "similarity": 0.7677,
+      "rank": 1
+    },
+    {
+      "reference_name": "OIP87 (4).webp",
+      "similarity": 0.7614,
+      "rank": 2
+    },
+    {
+      "reference_name": "OIP88 (2).webp",
+      "similarity": 0.7272,
+      "rank": 3
+    },
+    {
+      "reference_name": "OIP.webp",
+      "similarity": 0.7169,
+      "rank": 4
+    },
+    {
+      "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+      "similarity": 0.6929,
+      "rank": 5
+    }
+  ],
+  "processing_time_ms": 12522.6,
+  "temporal_strength": 0.0,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "explainability": {
+    "best_reference": "OIP (7).webp",
+    "best_frame": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg",
+    "temporal_strength": 0.0,
+    "competitor_overlap": 0.0,
+    "best_competitor": "",
+    "ambiguity_score": 0.0,
+    "ambiguity_reason": "Match is clear and consistent.",
+    "warnings": [],
+    "top_positive_matches": [
+      {
+        "reference_name": "OIP (7).webp",
+        "similarity": 0.7677,
+        "rank": 1
+      },
+      {
+        "reference_name": "OIP87 (4).webp",
+        "similarity": 0.7614,
+        "rank": 2
+      },
+      {
+        "reference_name": "OIP88 (2).webp",
+        "similarity": 0.7272,
+        "rank": 3
+      },
+      {
+        "reference_name": "OIP.webp",
+        "similarity": 0.7169,
+        "rank": 4
+      },
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+        "similarity": 0.6929,
+        "rank": 5
+      }
+    ],
+    "reasoning_steps": [
+      "Reference bank loaded with 18 campaign positive images. Intra-set centroid matching active.",
+      "Category-aware matching: Query mapped to reference cluster 'logo_refs' with 0.7738 centroid similarity.",
+      "Single image input: generated L2-normalized 768-dim SigLIP vision embedding.",
+      "Highest similarity found with campaign positive 'OIP (7).webp' (max similarity: 0.7677).",
+      "Competitor database inactive or empty. Distractor penalty bypassed.",
+      "Sigmoid Platt scaling calibrated raw fused visual similarity into a probability space. Calibrated Confidence: 65.8% (Midpoint aligned with target matching thresholds).",
+      "VERDICT REJECTED: Calibrated confidence (65.8%) falls short of matching threshold (71.0%)."
+    ],
+    "dominant_cluster": "logo_refs",
+    "cluster_similarity": 0.7738,
+    "social_adjustment": 0.0,
+    "product_boost": 0.0
+  },
+  "stable_segments": [],
+  "cohesion_metrics": {
+    "cluster_quality": "GOOD",
+    "intra_similarity_mean": 0.7966,
+    "intra_similarity_std": 0.0661,
+    "silhouette_score": 0.5932,
+    "outliers": [],
+    "recommendations": [
+      "Campaign reference set has nominal cohesion. Solid overall visual representation."
+    ]
+  },
+  "media_context": {
+    "platform": "TikTok",
+    "width": 1600,
+    "height": 791
+  },
+  "dominant_cluster": "logo_refs",
+  "cluster_similarity": 0.7738,
+  "social_adjustment": 0.0,
+  "product_boost": 0.0,
+  "compliance_status": "PASS",
+  "compliance_score": 100,
+  "score": 100,
+  "passed_rules": [
+    "Successfully matched mention @Starbucks in caption.",
+    "Successfully matched hashtag #StarbucksPartner in caption.",
+    "No competitor brands found in caption, ocr, speech.",
+    "Maintained clean non-promotional brand voice."
+  ],
+  "violations": [],
+  "warnings": [],
+  "rules_detailed": [
+    {
+      "raw_text": "- must mention @Starbucks",
+      "rule_type": "required_mention",
+      "target": "@Starbucks",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": "caption",
+      "details": "Successfully matched mention @Starbucks in caption.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- must include #StarbucksPartner",
+      "rule_type": "required_hashtag",
+      "target": "#StarbucksPartner",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": "caption",
+      "details": "Successfully matched hashtag #StarbucksPartner in caption.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- no competitor mentions",
+      "rule_type": "no_competitors",
+      "target": "",
+      "severity": "CRITICAL",
+      "passed": true,
+      "match_source": null,
+      "details": "No competitor brands found in caption, ocr, speech.",
+      "is_optional": false
+    },
+    {
+      "raw_text": "- avoid overly promotional wording",
+      "rule_type": "avoid_promo",
+      "target": "",
+      "severity": "WARNING",
+      "passed": true,
+      "match_source": null,
+      "details": "Maintained clean non-promotional brand voice.",
+      "is_optional": false
+    }
+  ],
+  "ocr_text": [
+    "391",
+    "00 01 00 09",
+    "blox rolling",
+    "its go0d",
+    "٥٢٥"
+  ],
+  "ocr_blocks": [
+    {
+      "text": "starbucks",
+      "confidence": 0.994,
+      "box": [
+        [
+          1217.0,
+          25.0
+        ],
+        [
+          1295.0,
+          25.0
+        ],
+        [
+          1295.0,
+          41.0
+        ],
+        [
+          1217.0,
+          41.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Follow",
+      "confidence": 0.9997,
+      "box": [
+        [
+          1509.0,
+          33.0
+        ],
+        [
+          1555.0,
+          33.0
+        ],
+        [
+          1555.0,
+          49.0
+        ],
+        [
+          1509.0,
+          49.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Starbucks . 15h ago",
+      "confidence": 0.5466,
+      "box": [
+        [
+          1219.0,
+          43.0
+        ],
+        [
+          1329.0,
+          43.0
+        ],
+        [
+          1329.0,
+          59.0
+        ],
+        [
+          1219.0,
+          59.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "buttgrfly anid",
+      "confidence": 0.6173,
+      "box": [
+        [
+          1207.0,
+          71.0
+        ],
+        [
+          1281.0,
+          71.0
+        ],
+        [
+          1281.0,
+          85.0
+        ],
+        [
+          1207.0,
+          85.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "StafDucks",
+      "confidence": 0.6012,
+      "box": [
+        [
+          1281.0,
+          95.0
+        ],
+        [
+          1339.0,
+          95.0
+        ],
+        [
+          1339.0,
+          109.0
+        ],
+        [
+          1281.0,
+          109.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "IPOP MUSIEI",
+      "confidence": 0.6252,
+      "box": [
+        [
+          671.0,
+          105.0
+        ],
+        [
+          745.0,
+          105.0
+        ],
+        [
+          745.0,
+          121.0
+        ],
+        [
+          671.0,
+          121.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "391",
+      "confidence": 0.8937,
+      "box": [
+        [
+          1203.0,
+          145.0
+        ],
+        [
+          1225.0,
+          145.0
+        ],
+        [
+          1225.0,
+          157.0
+        ],
+        [
+          1203.0,
+          157.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Copy link",
+      "confidence": 0.7925,
+      "box": [
+        [
+          1505.0,
+          185.0
+        ],
+        [
+          1563.0,
+          185.0
+        ],
+        [
+          1563.0,
+          201.0
+        ],
+        [
+          1505.0,
+          201.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "comments (71)",
+      "confidence": 0.7972,
+      "box": [
+        [
+          1227.0,
+          223.0
+        ],
+        [
+          1315.0,
+          223.0
+        ],
+        [
+          1315.0,
+          239.0
+        ],
+        [
+          1227.0,
+          239.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Creator videos",
+      "confidence": 0.8543,
+      "box": [
+        [
+          1437.0,
+          223.0
+        ],
+        [
+          1521.0,
+          223.0
+        ],
+        [
+          1521.0,
+          239.0
+        ],
+        [
+          1437.0,
+          239.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "15h 3g0",
+      "confidence": 0.5589,
+      "box": [
+        [
+          1197.0,
+          317.0
+        ],
+        [
+          1243.0,
+          317.0
+        ],
+        [
+          1243.0,
+          333.0
+        ],
+        [
+          1197.0,
+          333.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "R٤٥",
+      "confidence": 0.3214,
+      "box": [
+        [
+          1247.0,
+          319.0
+        ],
+        [
+          1283.0,
+          319.0
+        ],
+        [
+          1283.0,
+          333.0
+        ],
+        [
+          1247.0,
+          333.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Blox Rolling",
+      "confidence": 0.96,
+      "box": [
+        [
+          1197.0,
+          366.0
+        ],
+        [
+          1263.0,
+          366.0
+        ],
+        [
+          1263.0,
+          383.0
+        ],
+        [
+          1197.0,
+          383.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Its go0d",
+      "confidence": 0.3848,
+      "box": [
+        [
+          1197.0,
+          384.0
+        ],
+        [
+          1249.0,
+          384.0
+        ],
+        [
+          1249.0,
+          401.0
+        ],
+        [
+          1197.0,
+          401.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "all but",
+      "confidence": 0.3446,
+      "box": [
+        [
+          1259.0,
+          385.0
+        ],
+        [
+          1299.0,
+          385.0
+        ],
+        [
+          1299.0,
+          399.0
+        ],
+        [
+          1259.0,
+          399.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "want my summerberry",
+      "confidence": 0.8553,
+      "box": [
+        [
+          1305.0,
+          383.0
+        ],
+        [
+          1437.0,
+          383.0
+        ],
+        [
+          1437.0,
+          401.0
+        ],
+        [
+          1305.0,
+          401.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "15h 3g0",
+      "confidence": 0.4082,
+      "box": [
+        [
+          1197.0,
+          405.0
+        ],
+        [
+          1243.0,
+          405.0
+        ],
+        [
+          1243.0,
+          421.0
+        ],
+        [
+          1197.0,
+          421.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "R٤٥",
+      "confidence": 0.4659,
+      "box": [
+        [
+          1247.0,
+          407.0
+        ],
+        [
+          1283.0,
+          407.0
+        ],
+        [
+          1283.0,
+          421.0
+        ],
+        [
+          1247.0,
+          421.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "٥٥٥٥٢٥",
+      "confidence": 0.5194,
+      "box": [
+        [
+          1197.0,
+          457.0
+        ],
+        [
+          1241.0,
+          457.0
+        ],
+        [
+          1241.0,
+          469.0
+        ],
+        [
+          1197.0,
+          469.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "not as good as the summer berry",
+      "confidence": 0.9731,
+      "box": [
+        [
+          1197.0,
+          472.0
+        ],
+        [
+          1393.0,
+          472.0
+        ],
+        [
+          1393.0,
+          489.0
+        ],
+        [
+          1197.0,
+          489.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "9h ago",
+      "confidence": 0.9657,
+      "box": [
+        [
+          1199.0,
+          657.0
+        ],
+        [
+          1237.0,
+          657.0
+        ],
+        [
+          1237.0,
+          673.0
+        ],
+        [
+          1199.0,
+          673.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Roply",
+      "confidence": 0.9057,
+      "box": [
+        [
+          1243.0,
+          657.0
+        ],
+        [
+          1277.0,
+          657.0
+        ],
+        [
+          1277.0,
+          673.0
+        ],
+        [
+          1243.0,
+          673.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Savaninia Wright",
+      "confidence": 0.4486,
+      "box": [
+        [
+          1215.0,
+          707.0
+        ],
+        [
+          1301.0,
+          707.0
+        ],
+        [
+          1301.0,
+          723.0
+        ],
+        [
+          1215.0,
+          723.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "00:01/00:09",
+      "confidence": 0.9695,
+      "box": [
+        [
+          717.0,
+          753.0
+        ],
+        [
+          785.0,
+          753.0
+        ],
+        [
+          785.0,
+          769.0
+        ],
+        [
+          717.0,
+          769.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    },
+    {
+      "text": "Add comment  ,",
+      "confidence": 0.626,
+      "box": [
+        [
+          1199.0,
+          751.0
+        ],
+        [
+          1307.0,
+          751.0
+        ],
+        [
+          1307.0,
+          767.0
+        ],
+        [
+          1199.0,
+          767.0
+        ]
+      ],
+      "frame_id": "WhatsApp Image 2026-05-21 at 12.17.51.jpeg"
+    }
+  ],
+  "ocr_explainability": {
+    "ocr_blocks_count": 25,
+    "compliance_score": 100,
+    "compliance_status": "PASS",
+    "violations_breakdown": {
+      "critical": 0,
+      "warning": 0,
+      "info": 0
+    },
+    "reasoning_steps": [
+      "Policy evaluation and visual analysis triggered: successfully scanned target visual components. Extracted 25 text bounding boxes with confidence levels.",
+      "Normalized on-screen overlay text detected: starbucks, Follow, Starbucks . 15h ago, buttgrfly anid, StafDucks, IPOP MUSIEI, 391, Copy link, comments (71), Creator videos ... (+15 more)",
+      "Compliance Policy evaluated: score calculated at 100/100. Status: PASS. Violations breakdown: 0 CRITICAL, 0 WARNING, 0 INFO.",
+      "COMPLIANT [CRITICAL]: '- must mention @Starbucks' passed. Matched on: caption",
+      "COMPLIANT [CRITICAL]: '- must include #StarbucksPartner' passed. Matched on: caption"
+    ],
+    "platform_detected": "TikTok",
+    "caption_detected": "Best coffee ever ☕ Try Starbucks today! #StarbucksPartner @Starbucks",
+    "hashtags": [],
+    "ignored_ui_elements": [
+      "starbucks",
+      "follow",
+      "starbucks 15h ago",
+      "buttgrfly anid",
+      "stafducks",
+      "ipop musiei",
+      "copy link",
+      "comments 71",
+      "creator videos",
+      "15h 3g0",
+      "r٤٥",
+      "all but",
+      "want my summerberry",
+      "not as good as the summer berry",
+      "9h ago",
+      "roply"
+    ]
+  },
+  "thumbnails": [],
+  "model_version": "google/siglip-base-patch16-224",
+  "threshold_version": "v1.2-adaptive",
+  "policy_version": "v2.0-compliance",
+  "ocr_version": "easyocr-1.7",
+  "reviewer_notes": "",
+  "reviewed_by": "",
+  "review_status": "BORDERLINE",
+  "stored": true,
+  "report_exportable": true,
+  "history_available": true,
+  "reasoning": []
+}
