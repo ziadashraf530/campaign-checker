@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 
 export default function App() {
-  const [mode, setMode] = useState('siglip') // 'siglip' or 'legacy'
+  const [mode, setMode] = useState(() => {
+    return localStorage.getItem('campaign_checker_mode') || 'siglip'
+  })
   
   // SigLIP Form refs
   const siglipRefPathRef = useRef(null)
@@ -18,10 +20,108 @@ export default function App() {
   // Global app states
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [siglipData, setSiglipData] = useState(null)
-  const [legacyResults, setLegacyResults] = useState([])
+  const [siglipData, setSiglipData] = useState(() => {
+    const saved = localStorage.getItem('campaign_checker_siglip_data')
+    try {
+      return saved ? JSON.parse(saved) : null
+    } catch (e) {
+      console.error('Error parsing campaign_checker_siglip_data', e)
+      return null
+    }
+  })
+  const [legacyResults, setLegacyResults] = useState(() => {
+    const saved = localStorage.getItem('campaign_checker_legacy_results')
+    try {
+      return saved ? JSON.parse(saved) : []
+    } catch (e) {
+      console.error('Error parsing campaign_checker_legacy_results', e)
+      return []
+    }
+  })
   const [expandedCards, setExpandedCards] = useState({})
-  const [apiPort, setApiPort] = useState('8001')
+  const [apiPort, setApiPort] = useState(() => {
+    return localStorage.getItem('campaign_checker_api_port') || '8000'
+  })
+
+  // Live Progress States
+  const [progressLog, setProgressLog] = useState([])
+  const [progressPct, setProgressPct] = useState(0)
+  const [progressDetail, setProgressDetail] = useState('')
+  const [progressStep, setProgressStep] = useState('')
+
+  // Sync to localStorage
+  useEffect(() => {
+    if (siglipData) {
+      localStorage.setItem('campaign_checker_siglip_data', JSON.stringify(siglipData))
+    } else {
+      localStorage.removeItem('campaign_checker_siglip_data')
+    }
+  }, [siglipData])
+
+  useEffect(() => {
+    if (legacyResults && legacyResults.length > 0) {
+      localStorage.setItem('campaign_checker_legacy_results', JSON.stringify(legacyResults))
+    } else {
+      localStorage.removeItem('campaign_checker_legacy_results')
+    }
+  }, [legacyResults])
+
+  useEffect(() => {
+    localStorage.setItem('campaign_checker_mode', mode)
+  }, [mode])
+
+  useEffect(() => {
+    localStorage.setItem('campaign_checker_api_port', apiPort)
+  }, [apiPort])
+
+  const handleNewCoverage = () => {
+    setSiglipData(null)
+    setLegacyResults([])
+    setError(null)
+    setExpandedCards({})
+  }
+
+  const getMediaUrl = (filepath) => {
+    if (!filepath) return ''
+    return `http://127.0.0.1:${apiPort}/media/?path=${encodeURIComponent(filepath)}`
+  }
+
+  const renderCardMedia = (filepath, filename) => {
+    if (!filepath) return <i className="fa-solid fa-file file-type-icon"></i>
+    const ext = filename ? filename.split('.').pop().toLowerCase() : filepath.split('.').pop().toLowerCase()
+    const mediaUrl = getMediaUrl(filepath)
+    
+    if (['mp4', 'avi', 'mov', 'mkv', 'webm'].includes(ext)) {
+      return (
+        <div className="card-media-thumbnail-container video" onClick={(e) => e.stopPropagation()}>
+          <video 
+            className="card-media-thumbnail" 
+            src={mediaUrl} 
+            muted 
+            loop 
+            autoPlay 
+            playsInline 
+          />
+          <div className="video-overlay-badge">
+            <i className="fa-solid fa-play"></i>
+          </div>
+        </div>
+      )
+    }
+    
+    return (
+      <div className="card-media-thumbnail-container image" onClick={(e) => e.stopPropagation()}>
+        <img 
+          className="card-media-thumbnail" 
+          src={mediaUrl} 
+          alt={filename || "thumbnail"} 
+          onError={(e) => {
+            e.target.style.display = 'none'
+          }}
+        />
+      </div>
+    )
+  }
 
   const toggleExpandCard = (index) => {
     setExpandedCards(prev => ({
@@ -44,6 +144,10 @@ export default function App() {
     setError(null)
     setSiglipData(null)
     setExpandedCards({})
+    setProgressLog([])
+    setProgressPct(0)
+    setProgressDetail('Connecting to AI matching engine...')
+    setProgressStep('init')
 
     try {
       const payload = {
@@ -53,15 +157,71 @@ export default function App() {
         debug: siglipDebug
       }
 
-      const res = await axios.post(`http://127.0.0.1:${apiPort}/campaign-match/`, payload)
-      
-      if (res.data.error) {
-        setError(res.data.error)
-      } else {
-        setSiglipData(res.data)
+      const response = await fetch(`http://127.0.0.1:${apiPort}/campaign-match/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        
+        // Save the last partial line back to the buffer
+        buffer = lines.pop()
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim()
+            if (!dataStr) continue
+
+            try {
+              const data = JSON.parse(dataStr)
+              if (data.type === 'progress') {
+                setProgressPct(data.pct || 0)
+                setProgressDetail(data.detail || '')
+                setProgressStep(data.step || '')
+                setProgressLog(prev => {
+                  // Avoid duplicate step logs if they are identical
+                  if (prev.length > 0 && prev[prev.length - 1].detail === data.detail) {
+                    return prev
+                  }
+                  return [...prev, {
+                    timestamp: new Date().toLocaleTimeString(),
+                    step: data.step,
+                    detail: data.detail,
+                    pct: data.pct
+                  }]
+                })
+              } else if (data.type === 'result') {
+                setSiglipData(data)
+                setProgressPct(100)
+                setProgressDetail('Analysis complete!')
+                setProgressStep('complete')
+              } else if (data.type === 'error') {
+                setError(data.error)
+              }
+            } catch (e) {
+              console.error('Error parsing SSE event:', e, dataStr)
+            }
+          }
+        }
       }
     } catch (err) {
-      setError('Connection failed: ' + (err.response?.data?.detail || err.message))
+      setError('Connection failed: ' + err.message)
     } finally {
       setLoading(false)
     }
@@ -327,12 +487,65 @@ export default function App() {
         {/* Right Side: Results Panel */}
         <section className="display-panel">
           
-          {/* State 1: Loading */}
+          {/* State 1: Loading & Live Progress Panel */}
           {loading && (
-            <div className="loading-panel">
-              <div className="loading-spinner"></div>
-              <h3>AI Engine In Progress</h3>
-              <p>Extracting keyframes, generating SigLIP embeddings, and computing multi-factor cosine similarities...</p>
+            <div className="progress-panel">
+              <div className="progress-panel-header">
+                <div className="progress-status">
+                  <div className="loading-spinner-small"></div>
+                  <h3>AI Verification Pipeline Active</h3>
+                </div>
+                <span className="progress-pct-badge">{progressPct}%</span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="progress-bar-container">
+                <div 
+                  className="progress-bar-fill" 
+                  style={{ width: `${progressPct}%` }}
+                ></div>
+              </div>
+
+              {/* Current Active Step */}
+              <div className="current-step-card">
+                <div className="step-indicator pulse">
+                  <i className="fa-solid fa-gear fa-spin"></i>
+                </div>
+                <div className="step-info">
+                  <div className="step-title">Current Phase: <span className="mono">{progressStep.toUpperCase()}</span></div>
+                  <p className="step-detail">{progressDetail}</p>
+                </div>
+              </div>
+
+              {/* Live Log Terminal */}
+              <div className="log-terminal">
+                <div className="log-terminal-header">
+                  <div className="terminal-buttons">
+                    <span className="btn-term red"></span>
+                    <span className="btn-term yellow"></span>
+                    <span className="btn-term green"></span>
+                  </div>
+                  <span className="terminal-title">system_telemetry_stream.log</span>
+                </div>
+                <div className="log-terminal-body">
+                  {progressLog.map((log, index) => (
+                    <div key={index} className="log-line">
+                      <span className="log-time">[{log.timestamp}]</span>
+                      <span className="log-tag">[SYSTEM]</span>
+                      <span className="log-text">{log.detail}</span>
+                      <span className="log-status-icon"><i className="fa-solid fa-check"></i></span>
+                    </div>
+                  ))}
+                  {progressDetail && progressStep !== 'complete' && (
+                    <div className="log-line active">
+                      <span className="log-time">[{new Date().toLocaleTimeString()}]</span>
+                      <span className="log-tag">[RUNNING]</span>
+                      <span className="log-text">{progressDetail}...</span>
+                      <span className="log-status-icon blinking">█</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -356,8 +569,13 @@ export default function App() {
                     <h3>Campaign Match Report</h3>
                     <span>{siglipData.summary?.campaign_name || 'Verification'}</span>
                   </div>
-                  <div className="engine-badge" style={{ borderColor: 'var(--accent-muted)' }}>
-                    {siglipData.summary?.num_references} references loaded
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <div className="engine-badge" style={{ borderColor: 'var(--accent-muted)' }}>
+                      {siglipData.summary?.num_references} references loaded
+                    </div>
+                    <button className="btn-secondary" onClick={handleNewCoverage}>
+                      <i className="fa-solid fa-rotate-left"></i> New Coverage
+                    </button>
                   </div>
                 </div>
 
@@ -511,11 +729,29 @@ export default function App() {
                       <div className="result-main" onClick={() => toggleExpandCard(index)}>
                         <div className="result-meta">
                           <div className="file-info">
-                            {getFileTypeIcon(res.filename)}
-                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                            {renderCardMedia(res.file, res.filename)}
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flexGrow: 1 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <span className="file-name">{res.filename || 'Target Content'}</span>
+                                <span className="file-name" title={res.filename}>{res.filename || 'Target Content'}</span>
                                 {renderVerdictBadge(res.match_type)}
+                                <button 
+                                  className="copy-path-badge-btn" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(res.file);
+                                    const target = e.currentTarget;
+                                    const icon = target.querySelector('i');
+                                    icon.className = 'fa-solid fa-check';
+                                    target.classList.add('copied');
+                                    setTimeout(() => {
+                                      icon.className = 'fa-solid fa-copy';
+                                      target.classList.remove('copied');
+                                    }, 1500);
+                                  }}
+                                  title="Copy absolute file path"
+                                >
+                                  <i className="fa-solid fa-copy"></i>
+                                </button>
                               </div>
                               {res.media_context && (
                                 <div className="media-badges-row">
@@ -546,7 +782,6 @@ export default function App() {
                               )}
                             </div>
                           </div>
-                          <span className="file-path">{res.file}</span>
                         </div>
 
                         <div className="score-section">
@@ -571,6 +806,36 @@ export default function App() {
                       {/* Expandable detailed statistics box */}
                       {isExpanded && (
                         <div className="result-details">
+                          {/* Visual Asset Inspection Showcase */}
+                          <div className="expanded-media-showcase">
+                            <div className="detail-section-title">
+                              <i className="fa-solid fa-eye"></i> Visual Asset Inspection
+                            </div>
+                            <div className="expanded-media-viewer">
+                              {(() => {
+                                const ext = res.filename ? res.filename.split('.').pop().toLowerCase() : res.file.split('.').pop().toLowerCase()
+                                const mediaUrl = getMediaUrl(res.file)
+                                if (['mp4', 'avi', 'mov', 'mkv', 'webm'].includes(ext)) {
+                                  return (
+                                    <video 
+                                      className="expanded-media-player" 
+                                      src={mediaUrl} 
+                                      controls 
+                                      playsInline 
+                                    />
+                                  )
+                                }
+                                return (
+                                  <img 
+                                    className="expanded-media-image" 
+                                    src={mediaUrl} 
+                                    alt={res.filename || "visual asset"} 
+                                  />
+                                )
+                              })()}
+                            </div>
+                          </div>
+
                           {/* Top Row: Metrics & References */}
                           <div className="detail-row">
                             {/* Similarity Metrics */}
@@ -1045,18 +1310,44 @@ export default function App() {
           {/* State 4: Legacy results display */}
           {!loading && legacyResults.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="results-header">Legacy Analysis Results</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="results-header" style={{ marginTop: 0 }}>Legacy Analysis Results</div>
+                <button className="btn-secondary" onClick={handleNewCoverage}>
+                  <i className="fa-solid fa-rotate-left"></i> New Coverage
+                </button>
+              </div>
               <div className="results-list">
                 {legacyResults.map((r, i) => (
                   <div className="result-card STRONG_MATCH" key={i} style={{ borderLeft: '4px solid var(--accent)' }}>
                     <div className="result-main" style={{ cursor: 'default' }}>
                       <div className="result-meta">
                         <div className="file-info">
-                          {getFileTypeIcon(r.file)}
-                          <span className="file-name" style={{ maxWidth: '350px' }}>{r.file.split(/[\\/]/).pop()}</span>
-                          <span className="badge legacy">{r.influencer || 'Post'} ({r.platform || 'Platform'})</span>
+                          {renderCardMedia(r.file, r.file.split(/[\\/]/).pop())}
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flexGrow: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span className="file-name" style={{ maxWidth: '350px' }}>{r.file.split(/[\\/]/).pop()}</span>
+                              <span className="badge legacy">{r.influencer || 'Post'} ({r.platform || 'Platform'})</span>
+                              <button 
+                                className="copy-path-badge-btn" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(r.file);
+                                  const target = e.currentTarget;
+                                  const icon = target.querySelector('i');
+                                  icon.className = 'fa-solid fa-check';
+                                  target.classList.add('copied');
+                                  setTimeout(() => {
+                                    icon.className = 'fa-solid fa-copy';
+                                    target.classList.remove('copied');
+                                  }, 1500);
+                                }}
+                                title="Copy absolute file path"
+                              >
+                                <i className="fa-solid fa-copy"></i>
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <span className="file-path">{r.file}</span>
                       </div>
                       <div className="score-section" style={{ minWidth: '220px', maxWidth: '350px' }}>
                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'right', fontStyle: 'italic' }}>

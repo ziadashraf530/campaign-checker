@@ -1,0 +1,14 @@
+{
+  "timestamp": 1779369467927,
+  "filename": "keyframe_000300.jpg",
+  "similarity_score": 0.3982,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Irrelevant",
+  "threshold_used": 0.6,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "WEAK REFERENCE CLUSTER: The reference set exhibits high internal variance (0.090). This indicates a highly diverse/lifestyle campaign, which naturally relaxes decision thresholds and increases susceptibility to competitor false alarms."
+  ]
+}
