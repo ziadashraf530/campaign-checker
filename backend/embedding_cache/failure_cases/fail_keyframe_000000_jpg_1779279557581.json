@@ -1,0 +1,15 @@
+{
+  "timestamp": 1779279557581,
+  "filename": "keyframe_000000.jpg",
+  "similarity_score": 0.7699,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Relevant",
+  "threshold_used": 0.6467,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "SOCIAL OPTIMIZATION: Applied +0.08 sequence-level confidence adjustment for vertical/UI format.",
+    "BRANDING BOOST: Applied +0.05 sequence-level product-centric focus boost."
+  ]
+}

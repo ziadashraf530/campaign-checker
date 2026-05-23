@@ -9,3 +9,7 @@ opencv-python
 python-multipart
 easyocr
 ultralytics>=8.1.0
+sentencepiece
+protobuf
+openpyxl
+yt-dlp

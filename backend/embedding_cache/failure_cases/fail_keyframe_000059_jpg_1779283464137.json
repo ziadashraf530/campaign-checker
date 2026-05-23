@@ -1,0 +1,14 @@
+{
+  "timestamp": 1779283464137,
+  "filename": "keyframe_000059.jpg",
+  "similarity_score": 0.4324,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Irrelevant",
+  "threshold_used": 0.64,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "STATIC AMBIENT ALIGNMENT: All video frames have almost identical mid-range similarity. This usually points to background scene color overlap rather than a true visual campaign match."
+  ]
+}

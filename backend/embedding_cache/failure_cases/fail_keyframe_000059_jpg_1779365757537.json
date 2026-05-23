@@ -1,0 +1,15 @@
+{
+  "timestamp": 1779365757537,
+  "filename": "keyframe_000059.jpg",
+  "similarity_score": 0.6532,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Irrelevant",
+  "threshold_used": 0.61,
+  "is_near_miss": true,
+  "is_ambiguous": false,
+  "warnings": [
+    "WEAK REFERENCE CLUSTER: The reference set exhibits high internal variance (0.090). This indicates a highly diverse/lifestyle campaign, which naturally relaxes decision thresholds and increases susceptibility to competitor false alarms.",
+    "STATIC AMBIENT ALIGNMENT: All video frames have almost identical mid-range similarity. This usually points to background scene color overlap rather than a true visual campaign match."
+  ]
+}
