@@ -1,0 +1,16 @@
+{
+  "timestamp": 1779522780065,
+  "filename": "keyframe_000360.jpg",
+  "similarity_score": 0.8071,
+  "competitor_similarity": 0.0,
+  "ambiguity_score": 0.0,
+  "verdict": "Relevant",
+  "threshold_used": 0.6,
+  "is_near_miss": false,
+  "is_ambiguous": false,
+  "warnings": [
+    "SOCIAL OPTIMIZATION: Applied +0.08 sequence-level confidence adjustment for vertical/UI format.",
+    "BRANDING BOOST: Applied +0.05 sequence-level product-centric focus boost.",
+    "WEAK REFERENCE CLUSTER: The reference set exhibits high internal variance (0.080). This indicates a highly diverse/lifestyle campaign, which naturally relaxes decision thresholds and increases susceptibility to competitor false alarms."
+  ]
+}

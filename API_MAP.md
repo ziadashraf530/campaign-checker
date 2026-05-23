@@ -13,7 +13,10 @@ Visual few-shot similarity matching using google/siglip-base-patch16-224.
   ```json
   {
     "reference_path": "string",
-    "target_path": "string",
+    "target_path": "string (optional if excel_path provided)",
+    "excel_path": "string (optional, local .xlsx path)",
+    "username_column": "string (optional, auto-detected if omitted)",
+    "link_column": "string (optional, auto-detected if omitted)",
     "campaign_name": "string (optional, default: 'campaign')",
     "debug": "boolean (optional, default: false)"
   }
@@ -84,7 +87,10 @@ The 6-layer noisy brand logo heuristic detection pipeline.
   {
     "brand_name": "string",
     "target_path": "string (optional)",
-    "reference_path": "string (optional)"
+    "reference_path": "string (optional)",
+    "excel_path": "string (optional, local .xlsx path)",
+    "username_column": "string (optional, auto-detected if omitted)",
+    "link_column": "string (optional, auto-detected if omitted)"
   }
   ```
 

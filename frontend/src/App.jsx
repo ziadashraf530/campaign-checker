@@ -10,12 +10,14 @@ export default function App() {
   const siglipRefPathRef = useRef(null)
   const siglipTargetPathRef = useRef(null)
   const siglipCampaignNameRef = useRef(null)
+  const siglipExcelPathRef = useRef(null)
   const [siglipDebug, setSiglipDebug] = useState(false)
   
   // Legacy Form refs
   const legacyBrandRef = useRef(null)
   const legacyTargetPathRef = useRef(null)
   const legacyRefPathRef = useRef(null)
+  const legacyExcelPathRef = useRef(null)
 
   // Global app states
   const [loading, setLoading] = useState(false)
@@ -134,9 +136,10 @@ export default function App() {
     const refPath = siglipRefPathRef.current ? siglipRefPathRef.current.value.trim() : ''
     const targetPath = siglipTargetPathRef.current ? siglipTargetPathRef.current.value.trim() : ''
     const campaignName = siglipCampaignNameRef.current ? siglipCampaignNameRef.current.value.trim() : 'campaign'
+    const excelPath = siglipExcelPathRef.current ? siglipExcelPathRef.current.value.trim() : ''
 
-    if (!refPath || !targetPath) {
-      setError('Please provide both the reference images folder and target file/folder path.')
+    if (!refPath || (!targetPath && !excelPath)) {
+      setError('Please provide the reference folder and either a target path or an Excel path.')
       return
     }
 
@@ -152,9 +155,12 @@ export default function App() {
     try {
       const payload = {
         reference_path: refPath,
-        target_path: targetPath,
         campaign_name: campaignName,
         debug: siglipDebug
+      }
+      if (targetPath) payload.target_path = targetPath
+      if (excelPath) {
+        payload.excel_path = excelPath
       }
 
       const response = await fetch(`http://127.0.0.1:${apiPort}/campaign-match/`, {
@@ -231,6 +237,7 @@ export default function App() {
     const brand = legacyBrandRef.current ? legacyBrandRef.current.value.trim() : ''
     const targetPath = legacyTargetPathRef.current ? legacyTargetPathRef.current.value.trim() : ''
     const refPath = legacyRefPathRef.current ? legacyRefPathRef.current.value.trim() : ''
+    const excelPath = legacyExcelPathRef.current ? legacyExcelPathRef.current.value.trim() : ''
 
     if (!brand) {
       setError('Please provide a brand name for analysis.')
@@ -247,6 +254,9 @@ export default function App() {
       }
       if (targetPath) payload.target_path = targetPath
       if (refPath) payload.reference_path = refPath
+      if (excelPath) {
+        payload.excel_path = excelPath
+      }
 
       const res = await axios.post(`http://127.0.0.1:${apiPort}/run-analysis/`, payload)
       
@@ -366,7 +376,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Target File or Folder Path</label>
+                <label>Target File or Folder Path (Optional if using Excel)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipTargetPathRef}
@@ -376,6 +386,20 @@ export default function App() {
                   />
                   <i className="fa-solid fa-bullseye"></i>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Excel File Path (Optional)</label>
+                <div className="input-wrapper">
+                  <input 
+                    ref={siglipExcelPathRef}
+                    className="form-control"
+                    placeholder="e.g. C:\\data\\posts.xlsx"
+                    defaultValue=""
+                  />
+                  <i className="fa-solid fa-file-excel"></i>
+                </div>
+                <div className="form-hint">Auto-detects username + link columns.</div>
               </div>
 
               <div className="form-group">
@@ -456,6 +480,20 @@ export default function App() {
                   />
                   <i className="fa-solid fa-images"></i>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Excel File Path (Optional)</label>
+                <div className="input-wrapper">
+                  <input 
+                    ref={legacyExcelPathRef}
+                    className="form-control"
+                    placeholder="e.g. C:\\data\\posts.xlsx"
+                    defaultValue=""
+                  />
+                  <i className="fa-solid fa-file-excel"></i>
+                </div>
+                <div className="form-hint">Auto-detects username + link columns.</div>
               </div>
 
               <button 
@@ -752,6 +790,18 @@ export default function App() {
                                 >
                                   <i className="fa-solid fa-copy"></i>
                                 </button>
+                                {res.source_url && (
+                                  <a
+                                    className="copy-path-badge-btn"
+                                    href={res.source_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Open source URL"
+                                  >
+                                    <i className="fa-solid fa-link"></i>
+                                  </a>
+                                )}
                               </div>
                               {res.media_context && (
                                 <div className="media-badges-row">
@@ -1345,6 +1395,18 @@ export default function App() {
                               >
                                 <i className="fa-solid fa-copy"></i>
                               </button>
+                              {r.source_url && (
+                                <a
+                                  className="copy-path-badge-btn"
+                                  href={r.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Open source URL"
+                                >
+                                  <i className="fa-solid fa-link"></i>
+                                </a>
+                              )}
                             </div>
                           </div>
                         </div>

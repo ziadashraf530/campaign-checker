@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from ai_engine import detect_brand, detect_brand_from_frames, build_reference_embeddings
 from video_utils import extract_frames, extract_keyframes
 from file_scanner import scan_data_folder
+from excel_loader import load_excel_posts
+from media_downloader import download_media_from_url, is_image_file, is_video_file
 
 app = FastAPI(title="Campaign Checker", version="2.0.0")
 
@@ -45,25 +47,47 @@ class AnalysisRequest(BaseModel):
     brand_name: str
     target_path: str | None = None
     reference_path: str | None = None
+    excel_path: str | None = None
+    username_column: str = "username"
+    link_column: str = "link"
 
 @app.post("/run-analysis/")
 def run_analysis(req: AnalysisRequest):
     brand_name = req.brand_name
     target_path = req.target_path
     reference_path = req.reference_path
+    excel_path = req.excel_path
+    username_column = req.username_column
+    link_column = req.link_column
+
+    posts = []
 
     if target_path:
         if os.path.isfile(target_path):
-            posts = [{"influencer": "Custom File", "platform": "Local", "path": target_path}]
+            posts.append({"influencer": "Custom File", "platform": "Local", "path": target_path})
         elif os.path.isdir(target_path):
-            posts = []
             for root, _, files in os.walk(target_path):
                 for f in files:
-                    if f.lower().endswith(('png', 'jpg', 'jpeg', 'mp4')):
+                    if f.lower().endswith(("png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "mp4", "avi", "mov", "mkv", "webm")):
                         posts.append({"influencer": "Custom Folder", "platform": "Local", "path": os.path.join(root, f)})
         else:
             return {"results": [], "error": f"Path not found: {target_path}"}
-    else:
+
+    if excel_path:
+        try:
+            excel_posts = load_excel_posts(excel_path, username_column, link_column)
+        except Exception as exc:
+            return {"results": [], "error": str(exc)}
+
+        for row in excel_posts:
+            posts.append({
+                "influencer": row["username"],
+                "platform": "Excel",
+                "link": row["link"],
+                "source_type": "url",
+            })
+
+    if not posts:
         posts = scan_data_folder()
 
     reference_embeddings = []
@@ -73,44 +97,71 @@ def run_analysis(req: AnalysisRequest):
     results = []
 
     for post in posts:
-        path = post["path"]
-        ext = path.split(".")[-1].lower()
+        if post.get("source_type") == "url":
+            media_paths, error = download_media_from_url(post["link"])
+            if error:
+                results.append({
+                    "influencer": post["influencer"],
+                    "platform": post["platform"],
+                    "file": "",
+                    "source_url": post["link"],
+                    "status": f"Error: {error}",
+                })
+                continue
 
-        if ext in ["jpg", "png", "jpeg", "webp"]:
-            r = detect_brand(
-                image_source=path,
-                brand_name=brand_name,
-                reference_embeddings=reference_embeddings
-            )
-        elif ext == "mp4":
-            frames = extract_frames(path)
-            r = detect_brand_from_frames(
-                frames=frames,
-                brand_name=brand_name,
-                reference_embeddings=reference_embeddings
-            )
+            for path in media_paths:
+                r = _run_legacy_detection(path, brand_name, reference_embeddings)
+                label = _format_legacy_label(r)
+                results.append({
+                    "influencer": post["influencer"],
+                    "platform": post["platform"],
+                    "file": path,
+                    "source_url": post["link"],
+                    "status": label,
+                })
         else:
-            continue
-
-        # Format the output label to match the frontend expectations
-        debug_str = (
-            f" (Score: {r.confidence_raw:.2f}, "
-            f"ClipImg: {r.clip_image_similarity.fired}, "
-            f"ClipTxt: {r.clip_text_score.fired}, "
-            f"Caption: {r.blip_caption.fired}, "
-            f"YOLO: {r.yolo_detection.fired}, "
-            f"OCR: {r.ocr_text.fired})"
-        )
-        label = r.verdict + debug_str
-
-        results.append({
-            "influencer": post["influencer"],
-            "platform": post["platform"],
-            "file": path,
-            "status": label
-        })
+            path = post["path"]
+            r = _run_legacy_detection(path, brand_name, reference_embeddings)
+            if r is None:
+                continue
+            label = _format_legacy_label(r)
+            results.append({
+                "influencer": post["influencer"],
+                "platform": post["platform"],
+                "file": path,
+                "status": label,
+            })
 
     return {"results": results}
+
+
+def _run_legacy_detection(path: str, brand_name: str, reference_embeddings):
+    if is_image_file(path):
+        return detect_brand(
+            image_source=path,
+            brand_name=brand_name,
+            reference_embeddings=reference_embeddings,
+        )
+    if is_video_file(path):
+        frames = extract_frames(path)
+        return detect_brand_from_frames(
+            frames=frames,
+            brand_name=brand_name,
+            reference_embeddings=reference_embeddings,
+        )
+    return None
+
+
+def _format_legacy_label(result) -> str:
+    debug_str = (
+        f" (Score: {result.confidence_raw:.2f}, "
+        f"ClipImg: {result.clip_image_similarity.fired}, "
+        f"ClipTxt: {result.clip_text_score.fired}, "
+        f"Caption: {result.blip_caption.fired}, "
+        f"YOLO: {result.yolo_detection.fired}, "
+        f"OCR: {result.ocr_text.fired})"
+    )
+    return result.verdict + debug_str
 
 
 # ──────────────────────────────────────────────────────────────
@@ -119,7 +170,10 @@ def run_analysis(req: AnalysisRequest):
 
 class CampaignMatchRequest(BaseModel):
     reference_path: str
-    target_path: str
+    target_path: str | None = None
+    excel_path: str | None = None
+    username_column: str = "username"
+    link_column: str = "link"
     campaign_name: str | None = "campaign"
     debug: bool = False
 
@@ -143,8 +197,14 @@ def campaign_match(req: CampaignMatchRequest):
         if not os.path.exists(req.reference_path):
             yield f"data: {json.dumps({'type': 'error', 'error': f'Reference path not found: {req.reference_path}'})}\n\n"
             return
-        if not os.path.exists(req.target_path):
+        if not req.target_path and not req.excel_path:
+            yield f"data: {json.dumps({'type': 'error', 'error': 'Provide target_path or excel_path'})}\n\n"
+            return
+        if req.target_path and not os.path.exists(req.target_path):
             yield f"data: {json.dumps({'type': 'error', 'error': f'Target path not found: {req.target_path}'})}\n\n"
+            return
+        if req.excel_path and not os.path.exists(req.excel_path):
+            yield f"data: {json.dumps({'type': 'error', 'error': f'Excel path not found: {req.excel_path}'})}\n\n"
             return
 
         yield f"data: {json.dumps({'type': 'progress', 'step': 'reference_bank', 'detail': 'Building campaign reference bank (loading model and embeddings)...', 'pct': 15})}\n\n"
@@ -170,52 +230,76 @@ def campaign_match(req: CampaignMatchRequest):
             debug_dir = os.path.join(os.path.dirname(__file__), "debug_output")
 
         # Collect target files
-        target_files = []
-        if os.path.isfile(req.target_path):
-            target_files.append(req.target_path)
-        elif os.path.isdir(req.target_path):
-            for root, _, files in os.walk(req.target_path):
-                for f in sorted(files):
-                    ext = f.lower().rsplit(".", 1)[-1] if "." in f else ""
-                    if ext in ("png", "jpg", "jpeg", "webp", "bmp", "mp4", "avi", "mov", "mkv"):
-                        target_files.append(os.path.join(root, f))
+        target_items = []
+        if req.target_path:
+            if os.path.isfile(req.target_path):
+                target_items.append({"type": "file", "path": req.target_path})
+            elif os.path.isdir(req.target_path):
+                for root, _, files in os.walk(req.target_path):
+                    for f in sorted(files):
+                        ext = f.lower().rsplit(".", 1)[-1] if "." in f else ""
+                        if ext in ("png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "mp4", "avi", "mov", "mkv", "webm"):
+                            target_items.append({"type": "file", "path": os.path.join(root, f)})
 
-        if not target_files:
-            yield f"data: {json.dumps({'type': 'error', 'error': 'No supported files found in target path'})}\n\n"
+        if req.excel_path:
+            try:
+                excel_posts = load_excel_posts(req.excel_path, req.username_column, req.link_column)
+            except Exception as exc:
+                yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+                return
+
+            for row in excel_posts:
+                target_items.append({
+                    "type": "url",
+                    "username": row["username"],
+                    "url": row["link"],
+                })
+
+        if not target_items:
+            yield f"data: {json.dumps({'type': 'error', 'error': 'No supported files found in target inputs'})}\n\n"
             return
 
-        num_targets = len(target_files)
-        yield f"data: {json.dumps({'type': 'progress', 'step': 'collect_targets', 'detail': f'Found {num_targets} target files to verify.', 'pct': 40})}\n\n"
+        num_targets = len(target_items)
+        yield f"data: {json.dumps({'type': 'progress', 'step': 'collect_targets', 'detail': f'Found {num_targets} target items to verify.', 'pct': 40})}\n\n"
 
         # Process each file
         results = []
-        for idx, filepath in enumerate(target_files):
-            ext = filepath.lower().rsplit(".", 1)[-1] if "." in filepath else ""
-            filename = os.path.basename(filepath)
-            
-            # Progress calculation: range 40% to 90%
+        for idx, item in enumerate(target_items):
+            label = item.get("path") or item.get("url") or "target"
             pct = int(40 + (idx / num_targets) * 50)
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'processing_file', 'detail': f'Verifying {filename} ({idx + 1}/{num_targets})...', 'pct': pct})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'step': 'processing_file', 'detail': f'Verifying {os.path.basename(label)} ({idx + 1}/{num_targets})...', 'pct': pct})}\n\n"
 
-            if ext in ("mp4", "avi", "mov", "mkv"):
-                # Video: extract keyframes then match
-                from video_utils import extract_keyframes
-                keyframes = extract_keyframes(filepath, max_frames=15)
-                if keyframes:
-                    match_result = match_campaign_video(keyframes, ref_bank, debug_dir)
-                else:
-                    match_result = CampaignMatchResult(
-                        campaign_match=False,
-                        match_type="NO_MATCH",
-                        verdict="Irrelevant",
-                    )
-            else:
-                # Image
-                match_result = match_campaign_image(filepath, ref_bank, debug_dir)
+            if item["type"] == "url":
+                media_paths, error = download_media_from_url(item["url"])
+                if error:
+                    results.append({
+                        "campaign_match": False,
+                        "match_type": "NO_MATCH",
+                        "verdict": "Irrelevant",
+                        "confidence": 0.0,
+                        "file": "",
+                        "filename": "",
+                        "username": item.get("username"),
+                        "source_url": item.get("url"),
+                        "error": error,
+                    })
+                    continue
 
+                for filepath in media_paths:
+                    match_result = _run_campaign_match(filepath, ref_bank, debug_dir)
+                    result_dict = match_result.to_dict()
+                    result_dict["file"] = filepath
+                    result_dict["filename"] = os.path.basename(filepath)
+                    result_dict["username"] = item.get("username")
+                    result_dict["source_url"] = item.get("url")
+                    results.append(result_dict)
+                continue
+
+            filepath = item["path"]
+            match_result = _run_campaign_match(filepath, ref_bank, debug_dir)
             result_dict = match_result.to_dict()
             result_dict["file"] = filepath
-            result_dict["filename"] = filename
+            result_dict["filename"] = os.path.basename(filepath)
             results.append(result_dict)
 
         # Summary
@@ -246,3 +330,22 @@ def campaign_match(req: CampaignMatchRequest):
         yield f"data: {json.dumps(final_payload)}\n\n"
 
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
+
+
+def _run_campaign_match(filepath: str, ref_bank, debug_dir):
+    from siglip_engine import (
+        CampaignMatchResult,
+        match_campaign_image,
+        match_campaign_video,
+    )
+    ext = filepath.lower().rsplit(".", 1)[-1] if "." in filepath else ""
+    if ext in ("mp4", "avi", "mov", "mkv", "webm"):
+        keyframes = extract_keyframes(filepath, max_frames=15)
+        if keyframes:
+            return match_campaign_video(keyframes, ref_bank, debug_dir)
+        return CampaignMatchResult(
+            campaign_match=False,
+            match_type="NO_MATCH",
+            verdict="Irrelevant",
+        )
+    return match_campaign_image(filepath, ref_bank, debug_dir)
