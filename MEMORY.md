@@ -7,7 +7,7 @@ This document acts as a persistent repository-level memory, preserving critical 
 ## 1. Architectural Invariants
 
 ### 1.1 Additive Integration Pattern
-- **Preserve Legacy**: All legacy endpoints (specifically `POST /run-analysis/` in `backend/main.py` and its supporting code in `backend/ai_engine.py`) **must remain 100% untouched** or fully compatible.
+- **Preserve Legacy**: The legacy endpoint `POST /run-analysis/` must remain available and return a legacy-style status string, even if backed by the SigLIP matcher internally.
 - **SigLIP Independence**: The new campaign verification engine runs as a completely decoupled service inside `siglip_engine.py` with its own dedicated endpoint `POST /campaign-match/`.
 
 ### 1.2 Resource Optimization
@@ -18,16 +18,14 @@ This document acts as a persistent repository-level memory, preserving critical 
 
 ## 2. Score Blending & Calibration Adjustments
 
-- **Rebalanced Score Fusion Math**: Fused similarity scores are calculated via:
-  $$Score = 0.50 \cdot Max + 0.30 \cdot Centroid_{cluster} + 0.20 \cdot AvgK_{cluster}$$
-  incorporating both global layout similarity and dynamic cluster centroid alignment.
+- **Cluster-Weighted Fusion**: Fused similarity scores use dynamic weights that prioritize brand-focused clusters when cohesion is high:
+  $$Score = w_{max} \cdot Max + w_{cluster} \cdot Centroid_{cluster} + w_{topk} \cdot AvgK_{cluster}$$
+  Weights shift toward cluster centroids for logo/product clusters with strong cohesion.
 - **Calibration Boosts & Platt Limits**: Boost adjustments are additive and strictly capped at a maximum calibrated probability of `0.98` to prevent artificial confidence inflation.
-  - **Social UI Adjustment**: Up to `+0.05` bonus applied to vertical aspect ratios (e.g. mobile screenshots) displaying verified overlay elements matching relevant visual clusters.
-  - **Branding Product Boost**: Up to `+0.03` bonus applied when candidate matches align with specific high-density product reference clusters.
-- **Match Verdict Aggregation**: In the main API and dashboard summaries:
-  - `STRONG_MATCH` maps to "Strong Matches".
-  - `PROBABLE_STRONG_MATCH`, `PROBABLE_MATCH`, and `POSSIBLE_MATCH` map to "Possible Matches".
-  - `NO_MATCH` maps to "Rejected".
+  - **Social UI Adjustment**: Up to `+0.06` bonus when social UI layouts are detected with strong similarity signals.
+  - **Branding Product Boost**: Up to `+0.08` bonus when logo prominence and centered product focus are confirmed.
+  - **Visual Signal Boost**: Up to `+0.02` bonus for high reference agreement and cluster cohesion.
+- **Decision Tiers**: Verdicts now include a review tier (`VERIFIED_MATCH`, `HIGH_CONFIDENCE_MATCH`, `REVIEW_REQUIRED`, `UNCERTAIN`, `REJECTED`) alongside classic `match_type`.
 
 ---
 
@@ -35,14 +33,16 @@ This document acts as a persistent repository-level memory, preserving critical 
 
 - **Intra-Set Variance**: Campaigns built from highly uniform reference sets (e.g., repeating logo shots) produce an exceptionally narrow variance. Thresholds are automatically calibrated stricter to block competitors with similar color themes.
 - **Intra-Set Diversity**: Campaigns with highly diverse visuals (e.g. scene layouts, lifestyle branding) produce a higher variance. Thresholds are automatically adjusted slightly lower to accommodate broad design matches.
+- **Social-Media Upgrade Rule**: Mid-range similarity ($0.74$–$0.80$) with strong logo/product signals and low competitor overlap can be upgraded to `STRONG_MATCH`.
 
 ---
 
 ## 4. Advanced Robustness Invariants
 
-- **Competitor Suppression Margin**: Cosine margins (positive campaign similarity vs. closest competitor logo/brand similarity) must have a default separation boundary of `0.12`. Any encroachment under this boundary triggers penalization.
+- **Competitor Review Signals**: Cosine margins (positive campaign similarity vs. closest competitor similarity) are used for review flags, not automatic penalties. Review is recommended when $S_{comp} \ge 0.72$ or margin $\le 0.08$.
 - **Bartlett Smoothing Kernel**: Video temporal analysis must apply a rolling window Bartlett smoothing filter (width = 5) to eliminate brief frame anomalies, noise, and transient logo overlaps.
-- **Decision Ambiguity Index**: Matches having high competitor proximity must be explicitly marked as `AMBIGUOUS` if the Decision Ambiguity Index exceeds `0.50`.
+- **Review Status Routing**: High competitor proximity or low margins should push `review_status` to `REVIEW` rather than suppressing the final score.
+- **Decision Tier Alignment**: When competitor conflict is present, return `decision_tier` as `REVIEW_REQUIRED` so it stays consistent with `review_status`.
 
 ---
 

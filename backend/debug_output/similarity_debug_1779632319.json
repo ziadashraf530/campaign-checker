@@ -1,0 +1,149 @@
+{
+  "timestamp": 1779632319,
+  "type": "single_image",
+  "campaign_match": true,
+  "confidence": 81,
+  "confidence_raw": 0.7998,
+  "confidence_calibrated": 0.809,
+  "score": 0.7998,
+  "match_type": "POSSIBLE_MATCH",
+  "decision_tier": "HIGH_CONFIDENCE_MATCH",
+  "top_similarity": 0.7446,
+  "average_similarity": 0.6868,
+  "best_reference": "OIP (7).webp",
+  "best_reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP (7).webp",
+  "best_frame": "WhatsApp Image 2026-05-21 at 12.22.13.jpeg",
+  "thresholds": {
+    "strong": 0.825,
+    "possible": 0.675
+  },
+  "reference_variance": 0.031,
+  "num_references": 18,
+  "num_frames": 1,
+  "processing_time_ms": 475.9,
+  "stable_segments": [],
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 1.6691,
+    "has_overlays": true,
+    "is_mobile_screenshot": false,
+    "has_subtitles": true,
+    "compression_level": 0.038,
+    "suggested_threshold_offset": -0.005,
+    "reasoning": "Subtitle text detected",
+    "platform": "generic_social",
+    "platform_confidence": 0.6,
+    "platform_reason": "social layout cues detected"
+  },
+  "platform": "generic_social",
+  "social_adjustment": 0.03,
+  "product_boost": 0.02,
+  "visual_boost": 0.0,
+  "visual_signal": {
+    "logo_strength": 0.7918,
+    "product_focus": 0.5438,
+    "branding_density": 0.8767,
+    "social_media_confidence": 0.9,
+    "center_focus": 0.3356,
+    "color_match": 0.9998,
+    "agreement_score": 0.9306,
+    "platform": "generic_social",
+    "boosts": {
+      "social_adjustment": 0.03,
+      "product_boost": 0.02,
+      "visual_boost": 0.0,
+      "total_boost": 0.05,
+      "boost_reasons": [
+        {
+          "code": "social_layout",
+          "detail": "Social layout detected with strong similarity."
+        },
+        {
+          "code": "social_confidence",
+          "detail": "High social-media layout confidence."
+        },
+        {
+          "code": "brand_density",
+          "detail": "Strong brand color density with multi-reference agreement."
+        }
+      ]
+    }
+  },
+  "explainability": {
+    "best_reference": "OIP (7).webp",
+    "best_frame": "WhatsApp Image 2026-05-21 at 12.22.13.jpeg",
+    "temporal_strength": 0.0,
+    "competitor_overlap": 0.0,
+    "best_competitor": "",
+    "ambiguity_score": 0.0,
+    "ambiguity_reason": "Match is clear and consistent.",
+    "warnings": [],
+    "top_positive_matches": [
+      {
+        "reference_name": "OIP (7).webp",
+        "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP (7).webp",
+        "similarity": 0.7446,
+        "rank": 1
+      },
+      {
+        "reference_name": "OIP87 (4).webp",
+        "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP87 (4).webp",
+        "similarity": 0.7373,
+        "rank": 2
+      },
+      {
+        "reference_name": "OIP88 (2).webp",
+        "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP88 (2).webp",
+        "similarity": 0.7354,
+        "rank": 3
+      },
+      {
+        "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+        "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+        "similarity": 0.7203,
+        "rank": 4
+      },
+      {
+        "reference_name": "OIP (3).webp",
+        "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP (3).webp",
+        "similarity": 0.7032,
+        "rank": 5
+      }
+    ],
+    "reasoning_steps": [
+      "Reference bank loaded with 18 campaign positive images. Intra-set centroid matching active.",
+      "Category-aware matching: Query mapped to reference cluster 'logo_refs' with 0.7601 centroid similarity.",
+      "Single image input: generated L2-normalized 768-dim SigLIP vision embedding.",
+      "Highest similarity found with campaign positive 'OIP (7).webp' (max similarity: 0.7446).",
+      "Competitor database inactive or empty. Distractor penalty bypassed.",
+      "Social format adjustment: Applied +0.03 confidence boost due to vertical screenshot layout/UI overlay.",
+      "Product-centric boost: Applied +0.02 brand focus boost for dominant logo/product matching with low competitor overlap.",
+      "Sigmoid Platt scaling calibrated raw fused visual similarity into a probability space. Calibrated Confidence: 80.9% (Midpoint aligned with target matching thresholds).",
+      "VERDICT CONFIRMED: Calibrated confidence (80.9%) exceeds target threshold (67.5%). Target matches the campaign positive references."
+    ],
+    "dominant_cluster": "logo_refs",
+    "cluster_similarity": 0.7601,
+    "social_adjustment": 0.03,
+    "product_boost": 0.02,
+    "boost_reasons": [
+      {
+        "code": "social_layout",
+        "detail": "Social layout detected with strong similarity."
+      },
+      {
+        "code": "social_confidence",
+        "detail": "High social-media layout confidence."
+      },
+      {
+        "code": "brand_density",
+        "detail": "Strong brand color density with multi-reference agreement."
+      }
+    ],
+    "visual_signal": {
+      "logo_strength": 0.7918,
+      "product_focus": 0.5438,
+      "branding_density": 0.8767,
+      "social_media_confidence": 0.9
+    }
+  }
+}

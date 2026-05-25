@@ -162,7 +162,7 @@ def run_tests():
         blue_target = os.path.join(targets, "target_blue_pos.png")
         print(f"  Matching Positive Blue Target ({blue_target})...")
         res_pos = matcher.match_image(blue_target, bank)
-        print(f"    Verdict: {res_pos.verdict} (Confidence: {res_pos.confidence_pct}%)")
+        print(f"    Match Type: {res_pos.match_type} (Confidence: {res_pos.confidence}%)")
         print(f"    Match Type: {res_pos.match_type} (Average similarity: {res_pos.average_similarity})")
         print(f"    Best Reference: {res_pos.best_reference} ({res_pos.top_similarity})")
         assert res_pos.campaign_match, "Blue target must be classified as matching"
@@ -173,7 +173,7 @@ def run_tests():
         red_target = os.path.join(targets, "target_red_neg.png")
         print(f"  Matching Negative Red Target ({red_target})...")
         res_neg = matcher.match_image(red_target, bank)
-        print(f"    Verdict: {res_neg.verdict} (Confidence: {res_neg.confidence_pct}%)")
+        print(f"    Match Type: {res_neg.match_type} (Confidence: {res_neg.confidence}%)")
         print(f"    Match Type: {res_neg.match_type}")
         if res_neg.match_type == "STRONG_MATCH":
             print("    [WARNING] Artificial negative classified as STRONG_MATCH due to semantic overlap (expected with basic shapes on plain backgrounds)")
@@ -183,7 +183,7 @@ def run_tests():
         purple_target = os.path.join(targets, "target_purple_edge.png")
         print(f"  Matching Edge Purple Target ({purple_target})...")
         res_edge = matcher.match_image(purple_target, bank)
-        print(f"    Verdict: {res_edge.verdict} (Confidence: {res_edge.confidence_pct}%)")
+        print(f"    Match Type: {res_edge.match_type} (Confidence: {res_edge.confidence}%)")
         print(f"    Match Type: {res_edge.match_type}")
         print("    [OK] Success: Edge case processed correctly")
 

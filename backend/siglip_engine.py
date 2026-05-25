@@ -25,7 +25,14 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps
 
+from confidence_calibrator import ConfidenceCalibrator
+from false_positive_analysis import FalsePositiveAnalyzer
 from media_context_engine import MediaContextEngine
+from policy_engine import DecisionPolicy
+from retrieval_debugger import RetrievalDebugger
+from social_context_parser import SocialContextParser
+from visual_heatmap_renderer import VisualHeatmapRenderer
+from visual_signal_engine import VisualSignalEngine
 
 # ──────────────────────────────────────────────────────────────
 # Device detection
@@ -42,11 +49,18 @@ print(f"[SigLIP] Device: {_DEVICE}")
 class FrameScore:
     """Score details for a single frame."""
     frame_id: str = ""
+    score: float = 0.0
     max_similarity: float = 0.0
-    avg_similarity: float = 0.0
     top_k_avg: float = 0.0
     best_reference: str = ""
-    best_reference_similarity: float = 0.0
+    competitor_similarity: float = 0.0
+    raw_score: float = 0.0
+    social_boost: float = 0.0
+    cluster_similarity: float = 0.0
+    agreement_score: float = 0.0
+    social_adjustment: float = 0.0
+    product_boost: float = 0.0
+    visual_boost: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -56,6 +70,7 @@ class FrameScore:
 class ReferenceMatch:
     """Tracks how well a specific reference matched."""
     reference_name: str = ""
+    reference_path: str = ""
     similarity: float = 0.0
     rank: int = 0
 
@@ -67,39 +82,45 @@ class ReferenceMatch:
 class CampaignMatchResult:
     """Structured output from campaign matching."""
     campaign_match: bool = False
-    confidence: float = 0.0
-    match_type: str = "NO_MATCH"      # STRONG_MATCH | PROBABLE_STRONG_MATCH | POSSIBLE_MATCH | NO_MATCH
+    match_type: str = "NO_MATCH"      # STRONG_MATCH | POSSIBLE_MATCH | NO_MATCH
+    confidence: int = 0
+    confidence_raw: float = 0.0
+    confidence_calibrated: float = 0.0
+    score: float = 0.0
     top_similarity: float = 0.0
     average_similarity: float = 0.0
     best_reference: str = ""
+    best_reference_path: str = ""
     best_frame: str = ""
     num_references: int = 0
     num_frames_analyzed: int = 0
     reference_variance: float = 0.0
-    threshold_used: float = 0.0
+    thresholds: dict = field(default_factory=dict)
     frame_scores: list = field(default_factory=list)
     top_matches: list = field(default_factory=list)
     processing_time_ms: float = 0.0
-
-    # Robustness metrics
-    temporal_strength: float = 0.0
-    competitor_similarity: float = 0.0
-    ambiguity_score: float = 0.0
-    explainability: dict = field(default_factory=dict)
-    warnings: list[str] = field(default_factory=list)
-
-    # Legacy compatibility fields
-    verdict: str = "Irrelevant"
-    confidence_pct: float = 0.0
-
-    # Production hardening metrics
-    stable_segments: list = field(default_factory=list)
-    cohesion_metrics: dict = field(default_factory=dict)
     media_context: dict = field(default_factory=dict)
+    platform: str = ""
     dominant_cluster: str = "store_refs"
     cluster_similarity: float = 0.0
+    social_boost: float = 0.0
     social_adjustment: float = 0.0
     product_boost: float = 0.0
+    visual_boost: float = 0.0
+    visual_signal: dict = field(default_factory=dict)
+    competitor_similarity: float = 0.0
+    competitor_margin: float = 0.0
+    review_status: str = "REVIEW"
+    decision_tier: str = "NO_MATCH"
+    caption_compliance: str = "NOT_PROVIDED"
+    caption_issues: list[str] = field(default_factory=list)
+    caption_summary: dict = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+    explainability: dict = field(default_factory=dict)
+    stable_segments: list = field(default_factory=list)
+    temporal_strength: float = 0.0
+    frame_media: list = field(default_factory=list)
+    heatmap_path: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -242,10 +263,14 @@ class ReferenceBank:
         self.centroid: Optional[np.ndarray] = None         # (dim,)
         self.variance: float = 0.0
         self.reference_names: list[str] = []
+        self.reference_paths: list[str] = []
         self.reference_dir: str = ""
         self.hard_negative_bank = None
         self.cohesion_metrics: dict = {}
         self.clusters: list[dict] = []
+        self.color_signature: Optional[np.ndarray] = None
+        self.cluster_color_signatures: dict[str, list[float]] = {}
+        self.reference_color_stats: list[list[float]] = []
 
     def _get_cache_key(self, directory: str) -> str:
         """Generate a cache key based on directory path and file contents."""
@@ -278,6 +303,43 @@ class ReferenceBank:
     def _cache_path(self, cache_key: str) -> Path:
         return self.CACHE_DIR / f"ref_{cache_key}.npz"
 
+    def _build_category_clusters(self, image_files: list[Path]) -> list[dict]:
+        """
+        Build semantic clusters from explicit folder names if provided.
+        Expected folder names: logo_refs, drink_refs, product_refs, store_refs.
+        """
+        category_dirs = {"logo_refs", "drink_refs", "product_refs", "store_refs"}
+        category_indices: dict[str, list[int]] = {k: [] for k in category_dirs}
+
+        for idx, img_path in enumerate(image_files):
+            parent_name = img_path.parent.name.lower()
+            if parent_name in category_indices:
+                category_indices[parent_name].append(idx)
+
+        if not any(category_indices.values()):
+            return []
+
+        clusters = []
+        for label, indices in category_indices.items():
+            if not indices:
+                continue
+            embs = self.embeddings[indices]
+            centroid = embs.mean(axis=0)
+            centroid = centroid / np.linalg.norm(centroid)
+            sims = embs @ centroid
+            avg_sim = float(np.mean(sims))
+            var = float(np.std(sims)) if len(sims) > 1 else 0.0
+            clusters.append({
+                "centroid": centroid,
+                "member_indices": indices,
+                "member_names": [self.reference_names[i] for i in indices],
+                "label": label,
+                "variance": var,
+                "avg_similarity": avg_sim,
+            })
+
+        return clusters
+
     def _load_from_cache(self, cache_key: str) -> bool:
         """Try to load embeddings from disk cache."""
         cache_file = self._cache_path(cache_key)
@@ -288,6 +350,31 @@ class ReferenceBank:
                 self.centroid = data["centroid"]
                 self.variance = float(data["variance"])
                 self.reference_names = list(data["names"])
+                if "paths" in data:
+                    self.reference_paths = list(data["paths"])
+                else:
+                    self.reference_paths = []
+
+                if not self.reference_paths and self.reference_dir and self.reference_names:
+                    self.reference_paths = [str(Path(self.reference_dir) / name) for name in self.reference_names]
+
+                if "color_signature" in data and data["color_signature"].size == 3:
+                    self.color_signature = np.array(data["color_signature"], dtype=float)
+                else:
+                    self.color_signature = None
+
+                if "cluster_color_signatures" in data:
+                    try:
+                        self.cluster_color_signatures = json.loads(str(data["cluster_color_signatures"]))
+                    except Exception:
+                        self.cluster_color_signatures = {}
+                else:
+                    self.cluster_color_signatures = {}
+
+                if "reference_color_stats" in data and data["reference_color_stats"].size > 0:
+                    self.reference_color_stats = data["reference_color_stats"].tolist()
+                else:
+                    self.reference_color_stats = []
                 
                 # Retrieve or recompute cohesion metrics
                 if "cohesion_metrics" in data:
@@ -345,9 +432,13 @@ class ReferenceBank:
                 centroid=self.centroid,
                 variance=np.array(self.variance),
                 names=np.array(self.reference_names, dtype=object),
+                paths=np.array(self.reference_paths, dtype=object),
                 cohesion_metrics=np.array(json.dumps(self.cohesion_metrics)),
                 cluster_centroids=cluster_centroids,
-                cluster_metadata=np.array(cluster_metadata)
+                cluster_metadata=np.array(cluster_metadata),
+                color_signature=np.array(self.color_signature) if self.color_signature is not None else np.array([]),
+                cluster_color_signatures=np.array(json.dumps(self.cluster_color_signatures)),
+                reference_color_stats=np.array(self.reference_color_stats) if self.reference_color_stats else np.array([]),
             )
             print(f"[SigLIP] Cached embeddings to {cache_file.name}")
         except Exception as e:
@@ -409,11 +500,17 @@ class ReferenceBank:
 
         images = []
         names = []
+        paths = []
+        color_stats = []
         for img_path in image_files:
             try:
                 img = engine.preprocess_image(img_path)
                 images.append(img)
                 names.append(img_path.name)
+                paths.append(str(img_path.resolve()))
+                small = img.resize((32, 32), Image.Resampling.BILINEAR)
+                avg_color = np.asarray(small, dtype=np.float32).mean(axis=(0, 1)) / 255.0
+                color_stats.append(avg_color.tolist())
             except Exception as e:
                 print(f"[SigLIP]   [FAIL] {img_path.name}: {e}")
 
@@ -423,6 +520,8 @@ class ReferenceBank:
 
         self.embeddings = engine.embed_images_batch(images)
         self.reference_names = names
+        self.reference_paths = paths
+        self.reference_color_stats = color_stats
 
         # Centroid
         self.centroid = self.embeddings.mean(axis=0)
@@ -441,9 +540,28 @@ class ReferenceBank:
             neg_embs
         )
 
-        # Perform semantic clustering
-        from reference_cluster_engine import ReferenceClusterEngine
-        self.clusters = ReferenceClusterEngine.cluster_reference_set(self.embeddings, self.reference_names)
+        # Prefer explicit semantic groupings by folder name
+        category_clusters = self._build_category_clusters(image_files)
+        if category_clusters:
+            self.clusters = category_clusters
+        else:
+            from reference_cluster_engine import ReferenceClusterEngine
+            self.clusters = ReferenceClusterEngine.cluster_reference_set(self.embeddings, self.reference_names)
+
+        if self.reference_color_stats:
+            self.color_signature = np.mean(np.array(self.reference_color_stats, dtype=float), axis=0)
+        else:
+            self.color_signature = None
+
+        self.cluster_color_signatures = {}
+        if self.clusters and self.reference_color_stats:
+            color_arr = np.array(self.reference_color_stats, dtype=float)
+            for cluster in self.clusters:
+                indices = cluster.get("member_indices", [])
+                if not indices:
+                    continue
+                cluster_color = np.mean(color_arr[indices], axis=0)
+                self.cluster_color_signatures[cluster["label"]] = [float(c) for c in cluster_color]
 
         elapsed = time.time() - t0
         print(f"[SigLIP] Reference bank ready: {len(names)} images, "
@@ -451,6 +569,38 @@ class ReferenceBank:
 
         self._save_to_cache(cache_key)
         return len(names)
+
+    def ensure_color_signatures(self):
+        if self.color_signature is not None and self.cluster_color_signatures:
+            return
+
+        paths = self.reference_paths
+        if not paths and self.reference_names and self.reference_dir:
+            paths = [str(Path(self.reference_dir) / name) for name in self.reference_names]
+
+        color_stats = []
+        for path in paths:
+            try:
+                img = Image.open(str(path)).convert("RGB")
+                small = img.resize((32, 32), Image.Resampling.BILINEAR)
+                avg_color = np.asarray(small, dtype=np.float32).mean(axis=(0, 1)) / 255.0
+                color_stats.append(avg_color.tolist())
+            except Exception:
+                continue
+
+        if color_stats:
+            self.reference_color_stats = color_stats
+            self.color_signature = np.mean(np.array(color_stats, dtype=float), axis=0)
+
+            self.cluster_color_signatures = {}
+            if self.clusters:
+                color_arr = np.array(color_stats, dtype=float)
+                for cluster in self.clusters:
+                    indices = cluster.get("member_indices", [])
+                    if not indices:
+                        continue
+                    cluster_color = np.mean(color_arr[indices], axis=0)
+                    self.cluster_color_signatures[cluster["label"]] = [float(c) for c in cluster_color]
 
     @property
     def is_ready(self) -> bool:
@@ -542,9 +692,8 @@ class CampaignMatcher:
     Main orchestrator for campaign matching.
     """
 
-    STRONG_MATCH_THRESHOLD = 0.85
-    POSSIBLE_MATCH_THRESHOLD = 0.70
-    REJECT_THRESHOLD = 0.70
+    STRONG_MATCH_THRESHOLD = 0.82
+    POSSIBLE_MATCH_THRESHOLD = 0.68
 
     def __init__(self, top_k: int = 5):
         self.engine = SigLIPEngine()
@@ -565,31 +714,140 @@ class CampaignMatcher:
         strong = self.STRONG_MATCH_THRESHOLD
         possible = self.POSSIBLE_MATCH_THRESHOLD
 
+        # Light variance-based relaxation (avoid over-strict calibration)
         if variance > 0.08:
-            strong -= 0.05
-            possible -= 0.05
-        elif variance > 0.05:
             strong -= 0.03
             possible -= 0.03
+        elif variance > 0.05:
+            strong -= 0.02
+            possible -= 0.02
 
-        if num_refs >= 10:
-            strong += 0.02
-            possible += 0.02
+        # Small adjustment for very small or large reference sets
+        if num_refs <= 3:
+            possible -= 0.01
+        elif num_refs >= 12:
+            strong += 0.01
 
         # Apply media-aware context offsets
         strong += media_offset
         possible += media_offset
 
-        strong = max(0.75, min(0.92, strong))
-        possible = max(0.60, min(0.80, possible))
+        strong = max(0.76, min(0.88, strong))
+        possible = max(0.62, min(0.78, possible))
 
         return strong, possible
+
+    def _resolve_cluster_weights(
+        self,
+        reference_bank: ReferenceBank,
+        dominant_cluster: str,
+        cluster_similarity: float,
+        cluster_top_k_avg: float,
+    ) -> dict:
+        weights = {
+            "max": 0.45,
+            "cluster": 0.35,
+            "topk": 0.20,
+        }
+
+        brand_focus = dominant_cluster in {"logo_refs", "product_refs", "drink_refs"}
+        if brand_focus:
+            weights["cluster"] += 0.05
+            weights["max"] -= 0.03
+            weights["topk"] -= 0.02
+
+        quality = (reference_bank.cohesion_metrics or {}).get("cluster_quality", "")
+        if quality in {"EXCELLENT", "GOOD"} and cluster_similarity >= 0.78:
+            weights["cluster"] += 0.03
+            weights["max"] -= 0.02
+            weights["topk"] -= 0.01
+
+        if cluster_similarity >= 0.80 and cluster_top_k_avg >= 0.80:
+            weights["cluster"] += 0.02
+            weights["max"] -= 0.01
+            weights["topk"] -= 0.01
+
+        total = sum(weights.values())
+        if total > 0:
+            for key in weights:
+                weights[key] = weights[key] / total
+
+        return weights
+
+    def _compute_fused_score(
+        self,
+        max_sim: float,
+        cluster_similarity: float,
+        cluster_top_k_avg: float,
+        weights: dict,
+    ) -> float:
+        return (
+            max_sim * weights["max"]
+            + cluster_similarity * weights["cluster"]
+            + cluster_top_k_avg * weights["topk"]
+        )
+
+    def _compute_ambiguity_score(
+        self,
+        max_sim: float,
+        competitor_similarity: float,
+        competitor_margin: float,
+    ) -> float:
+        if competitor_similarity <= 0.0:
+            return 0.0
+
+        margin = competitor_margin if competitor_margin is not None else (max_sim - competitor_similarity)
+        if competitor_similarity >= 0.75 or margin <= 0.05:
+            return 0.9
+        if competitor_similarity >= 0.70 or margin <= 0.08:
+            return 0.7
+        if competitor_similarity >= 0.65 or margin <= 0.12:
+            return 0.5
+        if competitor_similarity >= 0.60:
+            return 0.3
+        return 0.1
+
+    def _compute_social_boost(
+        self,
+        max_sim: float,
+        cluster_label: str,
+        cluster_similarity: float,
+        top_k_avg: float,
+        is_social_media: bool,
+    ) -> float:
+        boost = 0.0
+
+        is_brand_focused = cluster_label in {"logo_refs", "drink_refs", "product_refs"}
+
+        if is_social_media and max_sim >= 0.74:
+            boost += 0.02
+
+        if is_brand_focused and max_sim >= 0.78:
+            boost += 0.03
+
+        if is_brand_focused and cluster_similarity >= 0.80:
+            boost += 0.01
+
+        if top_k_avg >= 0.80 and (max_sim - top_k_avg) <= 0.03:
+            boost += 0.02
+
+        return round(min(boost, 0.06), 4)
+
+    def _classify_match(self, score: float, strong: float, possible: float) -> tuple[str, bool]:
+        if score >= strong:
+            return "STRONG_MATCH", True
+        if score >= possible:
+            return "POSSIBLE_MATCH", True
+        return "NO_MATCH", False
 
     def match_image(
         self,
         image_source: Union[str, Path, bytes, Image.Image],
         reference_bank: ReferenceBank,
         debug_dir: Optional[str] = None,
+        caption_status: str = "NOT_PROVIDED",
+        caption_issues: Optional[list[str]] = None,
+        caption_summary: Optional[dict] = None,
     ) -> CampaignMatchResult:
         """
         Match a single image against the campaign reference bank.
@@ -600,8 +858,8 @@ class CampaignMatcher:
             return CampaignMatchResult(
                 campaign_match=False,
                 match_type="NO_MATCH",
-                verdict="Irrelevant",
-                confidence=0.0,
+                confidence=0,
+                review_status="REJECTED",
             )
 
         # Preprocess and embed
@@ -613,12 +871,15 @@ class CampaignMatcher:
             "is_social_media": False,
             "aspect_ratio": 1.0,
             "has_overlays": False,
+            "is_mobile_screenshot": False,
+            "has_subtitles": False,
             "compression_level": 0.0,
             "suggested_threshold_offset": 0.0,
-            "reasoning": "Standard horizontal layout"
+            "reasoning": "Standard horizontal layout",
         }
         media_offset = 0.0
-        
+        pil_img = None
+
         if not isinstance(image_source, bytes):
             try:
                 pil_img = Image.open(str(image_source)) if isinstance(image_source, (str, Path)) else image_source
@@ -626,6 +887,9 @@ class CampaignMatcher:
                 media_offset = media_context["suggested_threshold_offset"]
             except Exception as e:
                 print(f"[SigLIP] Media context extraction skipped: {e}")
+
+        if pil_img is None:
+            pil_img = image
 
         # Compute similarities (now includes category-aware centroid)
         sim_result = self.similarity.compute_similarities(embedding, reference_bank)
@@ -641,21 +905,32 @@ class CampaignMatcher:
         strong_thresh, possible_thresh = self._calibrate_thresholds(reference_bank, media_offset=media_offset)
 
         max_sim = sim_result["max_similarity"]
-        
+
         # Compute cluster top-K average similarity
         cluster_sims = sim_result["similarities"][cluster_member_indices] if len(cluster_member_indices) > 0 else np.array([max_sim])
         k_cl = min(3, len(cluster_member_indices)) if len(cluster_member_indices) > 0 else 1
         cluster_top_k_avg = float(np.sort(cluster_sims)[-k_cl:].mean()) if len(cluster_sims) > 0 else max_sim
 
-        # Rebalanced score: 50% max similarity, 30% cluster centroid similarity, 20% cluster top-k similarity
-        fused_score = max_sim * 0.50 + cluster_centroid_sim * 0.30 + cluster_top_k_avg * 0.20
+        weights = self._resolve_cluster_weights(
+            reference_bank=reference_bank,
+            dominant_cluster=dominant_cluster,
+            cluster_similarity=cluster_centroid_sim,
+            cluster_top_k_avg=cluster_top_k_avg,
+        )
 
-        # Check competitor ambiguity
+        fused_score = self._compute_fused_score(
+            max_sim=max_sim,
+            cluster_similarity=cluster_centroid_sim,
+            cluster_top_k_avg=cluster_top_k_avg,
+            weights=weights,
+        )
+
+        # Competitor proximity (review signal only)
         comp_sim = 0.0
-        ambiguity_score = 0.0
-        comp_penalty = 0.0
-        best_competitor = ""
+        comp_margin = 1.0
+        competitor_review = False
         warnings = []
+        best_competitor = ""
 
         has_negatives = hasattr(reference_bank, "hard_negative_bank") and reference_bank.hard_negative_bank is not None and reference_bank.hard_negative_bank.is_ready
         if has_negatives:
@@ -663,97 +938,144 @@ class CampaignMatcher:
             scorer = CompetitorScorer()
             comp_eval = scorer.evaluate_ambiguity(embedding, reference_bank, reference_bank.hard_negative_bank)
             comp_sim = comp_eval["competitor_similarity"]
-            ambiguity_score = comp_eval["ambiguity_score"]
-            comp_penalty = comp_eval["penalty"]
-            best_competitor = comp_eval["best_competitor"]
-            warnings = comp_eval["warnings"]
+            comp_margin = comp_eval["margin"]
+            competitor_review = comp_eval["needs_review"]
+            best_competitor = comp_eval.get("best_competitor", "")
+            warnings.extend(comp_eval["warnings"])
 
-        primary_score = max(0.0, min(1.0, fused_score - comp_penalty))
+        # Platform detection
+        frame_name = ""
+        if isinstance(image_source, (str, Path)):
+            frame_name = Path(str(image_source)).name
+        platform_info = SocialContextParser.detect_platform(frame_name, media_context)
+        media_context.update(platform_info)
+        platform = platform_info["platform"]
 
-        # Sigmoid-based Platt Scaling calibration
-        from confidence_calibrator import ConfidenceCalibrator
-        calibrated_confidence = ConfidenceCalibrator.calibrate(
-            primary_score,
-            strong_thresh,
-            possible_thresh
-        )
-
-        # Apply social screenshot optimization & product-centric brand boosts
-        is_social = media_context.get("is_social_media", False)
-        social_adjustment, product_boost = ConfidenceCalibrator.calculate_boosts(
+        # Visual signals + social boosts
+        visual_signal = VisualSignalEngine.analyze(
+            image=pil_img,
+            reference_bank=reference_bank,
+            dominant_cluster=dominant_cluster,
+            cluster_similarity=cluster_centroid_sim,
+            top_k_avg=cluster_top_k_avg,
             max_sim=max_sim,
-            competitor_sim=comp_sim,
-            is_social_media=is_social,
-            dominant_cluster_label=dominant_cluster
+            media_context=media_context,
+            competitor_similarity=comp_sim,
+            platform=platform,
         )
+        boost_block = visual_signal["boosts"]
+        social_adjustment = boost_block["social_adjustment"]
+        product_boost = boost_block["product_boost"]
+        visual_boost = boost_block["visual_boost"]
+        total_boost = boost_block["total_boost"]
 
-        if social_adjustment > 0.0 or product_boost > 0.0:
-            calibrated_confidence = min(0.98, calibrated_confidence + social_adjustment + product_boost)
-            if social_adjustment > 0.0:
-                warnings.append(f"SOCIAL OPTIMIZATION: Applied +{social_adjustment:.2f} confidence boost for degraded social screenshot/UI format.")
-            if product_boost > 0.0:
-                warnings.append(f"BRANDING BOOST: Applied +{product_boost:.2f} brand focus boost with low competitor overlap.")
+        final_score = min(1.0, max(0.0, fused_score + total_boost))
+        match_type, campaign_match = DecisionPolicy.classify_match(
+            score=final_score,
+            strong_threshold=strong_thresh,
+            possible_threshold=possible_thresh,
+            visual_signal=visual_signal,
+            competitor_similarity=comp_sim,
+            competitor_margin=comp_margin,
+        )
+        # Confidence calibration
+        min_possible = 0.35 if media_context.get("is_social_media") else 0.40
+        calibrated_conf = ConfidenceCalibrator.calibrate(
+            final_score,
+            strong_threshold=strong_thresh,
+            possible_threshold=possible_thresh,
+            min_possible=min_possible,
+        )
+        calibrated_conf = min(0.98, calibrated_conf)
+        confidence_pct = int(round(calibrated_conf * 100))
 
-        # Determine verdict based on calibrated confidence
-        if calibrated_confidence >= 0.85:
-            match_type = "STRONG_MATCH"
-            campaign_match = True
-            verdict = "Relevant"
-        elif calibrated_confidence >= 0.75:
-            match_type = "PROBABLE_STRONG_MATCH"
-            campaign_match = True
-            verdict = "Relevant"
-        elif calibrated_confidence >= 0.65:
-            match_type = "POSSIBLE_MATCH"
-            campaign_match = True
-            verdict = "Uncertain"
-        else:
-            match_type = "NO_MATCH"
-            campaign_match = False
-            verdict = "Irrelevant"
+        decision_tier, review_status = DecisionPolicy.assign_review_tier(
+            confidence_pct=confidence_pct,
+            match_type=match_type,
+            visual_signal=visual_signal,
+            competitor_similarity=comp_sim,
+            competitor_margin=comp_margin,
+            competitor_review=competitor_review,
+        )
 
         # Build top matches list
         top_matches = []
         sorted_indices = np.argsort(sim_result["similarities"])[::-1]
         for rank, idx in enumerate(sorted_indices[:5]):
+            ref_path = ""
+            if idx < len(reference_bank.reference_paths):
+                ref_path = reference_bank.reference_paths[idx]
             top_matches.append(ReferenceMatch(
                 reference_name=reference_bank.reference_names[idx],
+                reference_path=ref_path,
                 similarity=round(float(sim_result["similarities"][idx]), 4),
                 rank=rank + 1,
             ).to_dict())
 
-        # Diagnostics & explainability warnings
-        from false_positive_analysis import FalsePositiveAnalyzer
-        warnings.extend(FalsePositiveAnalyzer.analyze_diagnostics(
-            primary_score=primary_score,
-            best_pos_sim=max_sim,
-            best_comp_sim=comp_sim,
-            ambiguity_score=ambiguity_score,
-            ref_variance=reference_bank.variance,
-            num_refs=len(reference_bank.reference_names),
-        ))
+        # Diagnostics
+        ambiguity_score = self._compute_ambiguity_score(max_sim, comp_sim, comp_margin)
+        warnings.extend(
+            FalsePositiveAnalyzer.analyze_diagnostics(
+                primary_score=final_score,
+                best_pos_sim=max_sim,
+                best_comp_sim=comp_sim,
+                ambiguity_score=ambiguity_score,
+                ref_variance=reference_bank.variance,
+                num_refs=len(reference_bank.reference_names),
+                temporal_strength=0.0,
+                frame_scores=[fused_score],
+            )
+        )
 
         # Check and archive failure/boundary cases
         from failure_case_manager import FailureCaseManager
-        frame_name = ""
-        if isinstance(image_source, (str, Path)):
-            frame_name = Path(str(image_source)).name
-            
         FailureCaseManager.check_and_archive(
             filename=frame_name or "single_image",
             query_embedding=embedding,
-            similarity=primary_score,
+            similarity=final_score,
             competitor_similarity=comp_sim,
-            ambiguity_score=ambiguity_score,
-            verdict=verdict,
-            threshold=possible_thresh,
+            competitor_margin=comp_margin,
+            match_type=match_type,
+            match_threshold=possible_thresh,
             warnings=warnings
         )
 
         elapsed_ms = (time.time() - t0) * 1000
 
-        # Retrieval reasoning compiler
-        from retrieval_debugger import RetrievalDebugger
+        heatmap_path = ""
+        if isinstance(image_source, (str, Path)):
+            heatmap_path = VisualHeatmapRenderer.save_overlay(
+                image_source,
+                Path(__file__).resolve().parent / "temp_frames",
+            )
+
+        fs_dict = FrameScore(
+            frame_id=frame_name,
+            score=round(final_score, 4),
+            max_similarity=round(max_sim, 4),
+            top_k_avg=round(cluster_top_k_avg, 4),
+            best_reference=sim_result["best_ref_name"],
+            competitor_similarity=round(comp_sim, 4),
+            raw_score=round(fused_score, 4),
+            social_boost=round(total_boost, 4),
+            cluster_similarity=round(cluster_centroid_sim, 4),
+            agreement_score=round(visual_signal.get("agreement_score", 0.0), 4),
+            social_adjustment=round(social_adjustment, 4),
+            product_boost=round(product_boost, 4),
+            visual_boost=round(visual_boost, 4),
+        ).to_dict()
+
+        frame_media = []
+        if isinstance(image_source, (str, Path)):
+            frame_media.append({
+                "frame_id": frame_name,
+                "frame_path": str(Path(str(image_source))),
+                "score": round(final_score, 4),
+                "is_best": True,
+                "heatmap_path": heatmap_path,
+            })
+
+        decision_threshold = strong_thresh if match_type == "STRONG_MATCH" else possible_thresh
         explainability = RetrievalDebugger.compile_explainability(
             best_ref=sim_result["best_ref_name"],
             best_frame=frame_name,
@@ -763,57 +1085,69 @@ class CampaignMatcher:
             best_competitor=best_competitor,
             warnings=warnings,
             pos_sims=top_matches,
-            confidence=calibrated_confidence,
-            threshold=possible_thresh,
+            confidence=calibrated_conf,
+            threshold=decision_threshold,
             num_frames=1,
             num_refs=len(reference_bank.reference_names),
             dominant_cluster=dominant_cluster,
             cluster_similarity=cluster_centroid_sim,
             social_adjustment=social_adjustment,
-            product_boost=product_boost
+            product_boost=product_boost,
         )
+        explainability["boost_reasons"] = boost_block["boost_reasons"]
+        explainability["visual_signal"] = {
+            "logo_strength": visual_signal.get("logo_strength"),
+            "product_focus": visual_signal.get("product_focus"),
+            "branding_density": visual_signal.get("branding_density"),
+            "social_media_confidence": visual_signal.get("social_media_confidence"),
+        }
 
-        # Build frame scores list
-        fs_dict = FrameScore(
-            frame_id=frame_name,
-            max_similarity=round(max_sim, 4),
-            avg_similarity=round(sim_result["avg_similarity"], 4),
-            top_k_avg=round(cluster_top_k_avg, 4),
-            best_reference=sim_result["best_ref_name"],
-            best_reference_similarity=round(max_sim, 4),
-        ).to_dict()
-        fs_dict["smoothed_similarity"] = round(calibrated_confidence, 4)
-        fs_dict["competitor_similarity"] = round(comp_sim, 4)
-        fs_dict["raw_score"] = round(fused_score, 4)
+        best_ref_path = ""
+        if sim_result["best_ref_idx"] >= 0 and sim_result["best_ref_idx"] < len(reference_bank.reference_paths):
+            best_ref_path = reference_bank.reference_paths[sim_result["best_ref_idx"]]
 
         result = CampaignMatchResult(
             campaign_match=campaign_match,
-            confidence=round(calibrated_confidence, 4),
+            confidence=confidence_pct,
+            confidence_raw=round(final_score, 4),
+            confidence_calibrated=round(float(calibrated_conf), 4),
+            score=round(final_score, 4),
             match_type=match_type,
             top_similarity=round(max_sim, 4),
             average_similarity=round(sim_result["avg_similarity"], 4),
             best_reference=sim_result["best_ref_name"],
+            best_reference_path=best_ref_path,
             best_frame=frame_name,
             num_references=len(reference_bank.reference_names),
             num_frames_analyzed=1,
             reference_variance=round(reference_bank.variance, 4),
-            threshold_used=round(strong_thresh, 4),
+            thresholds={
+                "strong": round(strong_thresh, 4),
+                "possible": round(possible_thresh, 4),
+            },
             frame_scores=[fs_dict],
             top_matches=top_matches,
             processing_time_ms=round(elapsed_ms, 1),
-            verdict=verdict,
-            confidence_pct=round(calibrated_confidence * 100, 1),
-            temporal_strength=0.0,
             competitor_similarity=round(comp_sim, 4),
-            ambiguity_score=round(ambiguity_score, 4),
-            explainability=explainability,
+            competitor_margin=round(comp_margin, 4),
+            review_status=review_status,
+            decision_tier=decision_tier,
+            caption_compliance=caption_status,
+            caption_issues=caption_issues or [],
+            caption_summary=caption_summary or {},
             warnings=warnings,
-            cohesion_metrics=reference_bank.cohesion_metrics,
+            explainability=explainability,
             media_context=media_context,
+            platform=platform,
             dominant_cluster=dominant_cluster,
             cluster_similarity=round(cluster_centroid_sim, 4),
+            social_boost=round(total_boost, 4),
             social_adjustment=round(social_adjustment, 4),
-            product_boost=round(product_boost, 4)
+            product_boost=round(product_boost, 4),
+            visual_boost=round(visual_boost, 4),
+            visual_signal=visual_signal,
+            frame_media=frame_media,
+            heatmap_path=heatmap_path,
         )
 
         if debug_dir:
@@ -826,9 +1160,12 @@ class CampaignMatcher:
         frame_paths: list[str],
         reference_bank: ReferenceBank,
         debug_dir: Optional[str] = None,
+        caption_status: str = "NOT_PROVIDED",
+        caption_issues: Optional[list[str]] = None,
+        caption_summary: Optional[dict] = None,
     ) -> CampaignMatchResult:
         """
-        Match video frames against the campaign reference bank with temporal smoothing and calibrated sigmoid confidence.
+        Match video frames against the campaign reference bank with lightweight temporal smoothing.
         """
         t0 = time.time()
 
@@ -836,8 +1173,8 @@ class CampaignMatcher:
             return CampaignMatchResult(
                 campaign_match=False,
                 match_type="NO_MATCH",
-                verdict="Irrelevant",
-                confidence=0.0,
+                confidence=0,
+                review_status="REJECTED",
             )
 
         # Preprocess all frames
@@ -855,7 +1192,8 @@ class CampaignMatcher:
             return CampaignMatchResult(
                 campaign_match=False,
                 match_type="NO_MATCH",
-                verdict="Irrelevant",
+                confidence=0,
+                review_status="REJECTED",
             )
 
         # Batch embed all frames
@@ -872,29 +1210,33 @@ class CampaignMatcher:
                 media_offsets.append(ctx["suggested_threshold_offset"])
             except Exception:
                 pass
-        
+
         media_offset = float(np.mean(media_offsets)) if media_offsets else 0.0
 
         # Construct unified sequence-level media context
         combined_is_social = any(ctx["is_social_media"] for ctx in media_context_list) if media_context_list else False
         combined_aspect_ratio = float(np.mean([ctx["aspect_ratio"] for ctx in media_context_list])) if media_context_list else 1.0
         combined_has_overlays = any(ctx["has_overlays"] for ctx in media_context_list) if media_context_list else False
+        combined_has_subtitles = any(ctx["has_subtitles"] for ctx in media_context_list) if media_context_list else False
+        combined_is_mobile = any(ctx["is_mobile_screenshot"] for ctx in media_context_list) if media_context_list else False
         combined_compression = float(np.mean([ctx["compression_level"] for ctx in media_context_list])) if media_context_list else 0.0
-        
+
         all_reasons = set()
         for ctx in media_context_list:
             if ctx["reasoning"] and ctx["reasoning"] != "Standard horizontal layout":
                 for r in ctx["reasoning"].split(", "):
                     all_reasons.add(r)
         combined_reasoning = ", ".join(all_reasons) if all_reasons else "Standard horizontal layout"
-        
+
         media_context = {
             "is_social_media": combined_is_social,
             "aspect_ratio": round(combined_aspect_ratio, 4),
             "has_overlays": combined_has_overlays,
+            "has_subtitles": combined_has_subtitles,
+            "is_mobile_screenshot": combined_is_mobile,
             "compression_level": round(combined_compression, 4),
             "suggested_threshold_offset": round(media_offset, 4),
-            "reasoning": combined_reasoning
+            "reasoning": combined_reasoning,
         }
 
         # Calibrate thresholds using average sequence media offset
@@ -902,56 +1244,67 @@ class CampaignMatcher:
 
         # Compute per-frame scores
         frame_scores_list = []
-        all_max_sims = []
-        all_top_k_avgs = []
-        all_centroid_sims = []
-        best_frame_idx = 0
-        best_frame_max = 0.0
-        global_best_ref = ""
-
-        # Compute primary raw score per frame (fused blend)
         raw_scores = []
+        max_sims = []
+        best_frame_idx = 0
+        best_frame_score = 0.0
+        best_frame_ref = ""
+        best_frame_cluster = "store_refs"
+        best_cluster_sim = 0.0
 
         for i, (embedding, fp) in enumerate(zip(frame_embeddings, valid_paths)):
             sim_result = self.similarity.compute_similarities(embedding, reference_bank)
-
             frame_name = Path(fp).name
-            
-            # Category-aware reference matching & dominant cluster detection per frame
+
             from reference_cluster_engine import ReferenceClusterEngine
             dominant_cluster_dict = ReferenceClusterEngine.detect_dominant_cluster(embedding, reference_bank.clusters)
             dominant_cluster = dominant_cluster_dict["dominant_cluster"]
             cluster_centroid_sim = dominant_cluster_dict["cluster_similarity"]
             cluster_member_indices = dominant_cluster_dict["member_indices"]
 
-            # Compute cluster top-K average
             cluster_sims = sim_result["similarities"][cluster_member_indices] if len(cluster_member_indices) > 0 else np.array([sim_result["max_similarity"]])
             k_cl = min(3, len(cluster_member_indices)) if len(cluster_member_indices) > 0 else 1
             cluster_top_k_avg = float(np.sort(cluster_sims)[-k_cl:].mean()) if len(cluster_sims) > 0 else sim_result["max_similarity"]
 
+            weights = self._resolve_cluster_weights(
+                reference_bank=reference_bank,
+                dominant_cluster=dominant_cluster,
+                cluster_similarity=cluster_centroid_sim,
+                cluster_top_k_avg=cluster_top_k_avg,
+            )
+
+            fused_score = self._compute_fused_score(
+                max_sim=sim_result["max_similarity"],
+                cluster_similarity=cluster_centroid_sim,
+                cluster_top_k_avg=cluster_top_k_avg,
+                weights=weights,
+            )
+
+            agreement = 1.0 - min(1.0, max(0.0, sim_result["max_similarity"] - cluster_top_k_avg) / 0.08)
+
             fs = FrameScore(
                 frame_id=frame_name,
+                score=round(fused_score, 4),
                 max_similarity=round(sim_result["max_similarity"], 4),
-                avg_similarity=round(sim_result["avg_similarity"], 4),
                 top_k_avg=round(cluster_top_k_avg, 4),
                 best_reference=sim_result["best_ref_name"],
-                best_reference_similarity=round(sim_result["max_similarity"], 4),
+                competitor_similarity=0.0,
+                raw_score=round(fused_score, 4),
+                social_boost=0.0,
+                cluster_similarity=round(cluster_centroid_sim, 4),
+                agreement_score=round(float(np.clip(agreement, 0.0, 1.0)), 4),
             )
             frame_scores_list.append(fs.to_dict())
 
-            all_max_sims.append(sim_result["max_similarity"])
-            all_top_k_avgs.append(cluster_top_k_avg)
-            all_centroid_sims.append(cluster_centroid_sim)
-
-            if sim_result["max_similarity"] > best_frame_max:
-                best_frame_max = sim_result["max_similarity"]
-                best_frame_idx = i
-                global_best_ref = sim_result["best_ref_name"]
-
-            # Rebalanced raw score per frame: 50% max similarity, 30% cluster centroid similarity, 20% cluster top-k similarity
-            fused_score = sim_result["max_similarity"] * 0.50 + cluster_centroid_sim * 0.30 + cluster_top_k_avg * 0.20
-
             raw_scores.append(fused_score)
+            max_sims.append(sim_result["max_similarity"])
+
+            if fused_score > best_frame_score:
+                best_frame_score = fused_score
+                best_frame_idx = i
+                best_frame_ref = sim_result["best_ref_name"]
+                best_frame_cluster = dominant_cluster
+                best_cluster_sim = cluster_centroid_sim
 
         # Sequence-level temporal processing
         from temporal_engine import TemporalConsistencyEngine
@@ -962,178 +1315,237 @@ class CampaignMatcher:
         temporal_strength = temp_res["temporal_strength"]
         stable_segments = temp_res["stable_segments"]
 
-        # Check competitor evaluations
-        best_comp_sim = 0.0
-        best_comp_name = ""
-        comp_penalties = []
-        comp_sims = []
+        # Competitor proximity (review signal only) based on best frame
+        comp_sim = 0.0
+        comp_margin = 1.0
+        competitor_review = False
         warnings = []
-
+        best_competitor = ""
+        best_embedding = frame_embeddings[best_frame_idx]
         has_negatives = hasattr(reference_bank, "hard_negative_bank") and reference_bank.hard_negative_bank is not None and reference_bank.hard_negative_bank.is_ready
         if has_negatives:
             from hard_negative_engine import CompetitorScorer
             scorer = CompetitorScorer()
-            for emb in frame_embeddings:
-                comp_eval = scorer.evaluate_ambiguity(emb, reference_bank, reference_bank.hard_negative_bank)
-                comp_sims.append(comp_eval["competitor_similarity"])
-                comp_penalties.append(comp_eval["penalty"])
-                if comp_eval["competitor_similarity"] > best_comp_sim:
-                    best_comp_sim = comp_eval["competitor_similarity"]
-                    best_comp_name = comp_eval["best_competitor"]
-        else:
-            comp_sims = [0.0] * len(frame_embeddings)
-            comp_penalties = [0.0] * len(frame_embeddings)
+            comp_eval = scorer.evaluate_ambiguity(best_embedding, reference_bank, reference_bank.hard_negative_bank)
+            comp_sim = comp_eval["competitor_similarity"]
+            comp_margin = comp_eval["margin"]
+            competitor_review = comp_eval["needs_review"]
+            best_competitor = comp_eval.get("best_competitor", "")
+            warnings.extend(comp_eval["warnings"])
 
-        avg_penalty = float(np.mean(comp_penalties)) if comp_penalties else 0.0
-        primary_score = max(0.0, min(1.0, temporal_strength - avg_penalty))
+        # Platform detection based on best frame
+        best_frame_name = Path(valid_paths[best_frame_idx]).name if valid_paths else ""
+        platform_info = SocialContextParser.detect_platform(best_frame_name, media_context)
+        media_context.update(platform_info)
+        platform = platform_info["platform"]
 
-        # Calibrate overall video confidence
-        from confidence_calibrator import ConfidenceCalibrator
-        calibrated_confidence = ConfidenceCalibrator.calibrate(
-            primary_score,
-            strong_thresh,
-            possible_thresh
+        # Visual signals + social boosts based on best frame
+        best_frame_path = valid_paths[best_frame_idx] if valid_paths else ""
+        try:
+            best_pil = Image.open(str(best_frame_path)) if best_frame_path else images[best_frame_idx]
+        except Exception:
+            best_pil = images[best_frame_idx]
+
+        best_top_k_avg = frame_scores_list[best_frame_idx]["top_k_avg"] if frame_scores_list else 0.0
+        best_max_sim = max_sims[best_frame_idx] if max_sims else 0.0
+
+        visual_signal = VisualSignalEngine.analyze(
+            image=best_pil,
+            reference_bank=reference_bank,
+            dominant_cluster=best_frame_cluster,
+            cluster_similarity=best_cluster_sim,
+            top_k_avg=best_top_k_avg,
+            max_sim=best_max_sim,
+            media_context=media_context,
+            competitor_similarity=comp_sim,
+            platform=platform,
         )
+        boost_block = visual_signal["boosts"]
+        social_adjustment = boost_block["social_adjustment"]
+        product_boost = boost_block["product_boost"]
+        visual_boost = boost_block["visual_boost"]
+        total_boost = boost_block["total_boost"]
 
-        # Get dominant cluster of the best matching frame
-        best_embedding = frame_embeddings[best_frame_idx]
-        from reference_cluster_engine import ReferenceClusterEngine
-        best_dominant_cluster_dict = ReferenceClusterEngine.detect_dominant_cluster(best_embedding, reference_bank.clusters)
-        best_dominant_cluster = best_dominant_cluster_dict["dominant_cluster"]
-        best_cluster_centroid_sim = best_dominant_cluster_dict["cluster_similarity"]
-
-        # Apply social screenshot optimization & product-centric brand boosts at sequence-level
-        social_adjustment, product_boost = ConfidenceCalibrator.calculate_boosts(
-            max_sim=best_frame_max,
-            competitor_sim=best_comp_sim,
-            is_social_media=combined_is_social,
-            dominant_cluster_label=best_dominant_cluster
+        top_smoothed = max(smoothed_scores) if smoothed_scores else best_frame_score
+        base_score = max(temporal_strength, top_smoothed)
+        final_score = min(1.0, max(0.0, base_score + total_boost))
+        match_type, campaign_match = DecisionPolicy.classify_match(
+            score=final_score,
+            strong_threshold=strong_thresh,
+            possible_threshold=possible_thresh,
+            visual_signal=visual_signal,
+            competitor_similarity=comp_sim,
+            competitor_margin=comp_margin,
         )
+        # Confidence calibration
+        min_possible = 0.35 if media_context.get("is_social_media") else 0.40
+        calibrated_conf = ConfidenceCalibrator.calibrate(
+            final_score,
+            strong_threshold=strong_thresh,
+            possible_threshold=possible_thresh,
+            min_possible=min_possible,
+        )
+        calibrated_conf = min(0.98, calibrated_conf)
+        confidence_pct = int(round(calibrated_conf * 100))
 
-        if social_adjustment > 0.0 or product_boost > 0.0:
-            calibrated_confidence = min(0.98, calibrated_confidence + social_adjustment + product_boost)
-            if social_adjustment > 0.0:
-                warnings.append(f"SOCIAL OPTIMIZATION: Applied +{social_adjustment:.2f} sequence-level confidence adjustment for vertical/UI format.")
-            if product_boost > 0.0:
-                warnings.append(f"BRANDING BOOST: Applied +{product_boost:.2f} sequence-level product-centric focus boost.")
-
-        # Ambiguity at peak frame
-        diff = best_frame_max - best_comp_sim
-        ambiguity_score = 1.0 - np.clip(diff / 0.12, 0.0, 1.0) if has_negatives else 0.0
-
-        # Determine final campaign verdict based on graduated zones
-        if calibrated_confidence >= 0.85:
-            match_type = "STRONG_MATCH"
-            campaign_match = True
-            verdict = "Relevant"
-        elif calibrated_confidence >= 0.75:
-            match_type = "PROBABLE_STRONG_MATCH"
-            campaign_match = True
-            verdict = "Relevant"
-        elif calibrated_confidence >= 0.65:
-            match_type = "POSSIBLE_MATCH"
-            campaign_match = True
-            verdict = "Uncertain"
-        else:
-            match_type = "NO_MATCH"
-            campaign_match = False
-            verdict = "Irrelevant"
+        decision_tier, review_status = DecisionPolicy.assign_review_tier(
+            confidence_pct=confidence_pct,
+            match_type=match_type,
+            visual_signal=visual_signal,
+            competitor_similarity=comp_sim,
+            competitor_margin=comp_margin,
+            competitor_review=competitor_review,
+        )
 
         # Build top matches from the best frame
         top_matches = []
         best_sim_result = self.similarity.compute_similarities(best_embedding, reference_bank)
         sorted_ref_indices = np.argsort(best_sim_result["similarities"])[::-1]
         for rank, idx in enumerate(sorted_ref_indices[:5]):
+            ref_path = ""
+            if idx < len(reference_bank.reference_paths):
+                ref_path = reference_bank.reference_paths[idx]
             top_matches.append(ReferenceMatch(
                 reference_name=reference_bank.reference_names[idx],
+                reference_path=ref_path,
                 similarity=round(float(best_sim_result["similarities"][idx]), 4),
                 rank=rank + 1,
             ).to_dict())
 
-        # Diagnostics & explainability warnings
-        from false_positive_analysis import FalsePositiveAnalyzer
-        warnings.extend(FalsePositiveAnalyzer.analyze_diagnostics(
-            primary_score=primary_score,
-            best_pos_sim=best_frame_max,
-            best_comp_sim=best_comp_sim,
-            ambiguity_score=ambiguity_score,
-            ref_variance=reference_bank.variance,
-            num_refs=len(reference_bank.reference_names),
-            temporal_strength=temporal_strength,
-            frame_scores=raw_scores
-        ))
+        # Diagnostics
+        ambiguity_score = self._compute_ambiguity_score(best_max_sim, comp_sim, comp_margin)
+        warnings.extend(
+            FalsePositiveAnalyzer.analyze_diagnostics(
+                primary_score=final_score,
+                best_pos_sim=best_max_sim,
+                best_comp_sim=comp_sim,
+                ambiguity_score=ambiguity_score,
+                ref_variance=reference_bank.variance,
+                num_refs=len(reference_bank.reference_names),
+                temporal_strength=temporal_strength,
+                frame_scores=raw_scores,
+            )
+        )
 
-        # Update frame scores with rich diagnostics for graph
+        # Update frame scores with smoothed curve for UI
         for i, fp in enumerate(valid_paths):
             fs_dict = frame_scores_list[i]
-            # Frame scores are normalized into Platt space too
-            fs_dict["smoothed_similarity"] = round(float(ConfidenceCalibrator.calibrate(smoothed_scores[i], strong_thresh, possible_thresh)), 4) if i < len(smoothed_scores) else fs_dict["max_similarity"]
-            fs_dict["competitor_similarity"] = round(comp_sims[i], 4) if i < len(comp_sims) else 0.0
-            fs_dict["raw_score"] = round(raw_scores[i], 4)
+            smoothed_score = smoothed_scores[i] if i < len(smoothed_scores) else fs_dict["score"]
+            fs_dict["score"] = round(float(smoothed_score), 4)
+            if i == best_frame_idx:
+                fs_dict["social_boost"] = round(total_boost, 4)
+                fs_dict["social_adjustment"] = round(social_adjustment, 4)
+                fs_dict["product_boost"] = round(product_boost, 4)
+                fs_dict["visual_boost"] = round(visual_boost, 4)
             frame_scores_list[i] = fs_dict
-
-        best_frame_name = Path(valid_paths[best_frame_idx]).name if valid_paths else ""
 
         # Archive boundary or failure cases
         from failure_case_manager import FailureCaseManager
         FailureCaseManager.check_and_archive(
             filename=best_frame_name or "video_frames",
             query_embedding=best_embedding,
-            similarity=primary_score,
-            competitor_similarity=best_comp_sim,
-            ambiguity_score=ambiguity_score,
-            verdict=verdict,
-            threshold=possible_thresh,
+            similarity=final_score,
+            competitor_similarity=comp_sim,
+            competitor_margin=comp_margin,
+            match_type=match_type,
+            match_threshold=possible_thresh,
             warnings=warnings
         )
 
         elapsed_ms = (time.time() - t0) * 1000
 
-        from retrieval_debugger import RetrievalDebugger
+        heatmap_path = ""
+        if best_frame_path:
+            heatmap_path = VisualHeatmapRenderer.save_overlay(
+                best_frame_path,
+                Path(__file__).resolve().parent / "temp_frames",
+            )
+
+        frame_media = []
+        for i, fp in enumerate(valid_paths):
+            frame_media.append({
+                "frame_id": Path(fp).name,
+                "frame_path": str(Path(fp)),
+                "score": frame_scores_list[i]["score"],
+                "is_best": i == best_frame_idx,
+                "heatmap_path": heatmap_path if i == best_frame_idx else "",
+            })
+
+        decision_threshold = strong_thresh if match_type == "STRONG_MATCH" else possible_thresh
         explainability = RetrievalDebugger.compile_explainability(
-            best_ref=global_best_ref,
+            best_ref=best_frame_ref,
             best_frame=best_frame_name,
             temporal_strength=temporal_strength,
-            competitor_sim=best_comp_sim,
+            competitor_sim=comp_sim,
             ambiguity_score=ambiguity_score,
-            best_competitor=best_comp_name,
+            best_competitor=best_competitor,
             warnings=warnings,
             pos_sims=top_matches,
-            confidence=calibrated_confidence,
-            threshold=possible_thresh,
+            confidence=calibrated_conf,
+            threshold=decision_threshold,
             num_frames=len(images),
             num_refs=len(reference_bank.reference_names),
-            dominant_cluster=best_dominant_cluster,
-            cluster_similarity=best_cluster_centroid_sim,
+            dominant_cluster=best_frame_cluster,
+            cluster_similarity=best_cluster_sim,
             social_adjustment=social_adjustment,
-            product_boost=product_boost
+            product_boost=product_boost,
         )
+        explainability["boost_reasons"] = boost_block["boost_reasons"]
+        explainability["visual_signal"] = {
+            "logo_strength": visual_signal.get("logo_strength"),
+            "product_focus": visual_signal.get("product_focus"),
+            "branding_density": visual_signal.get("branding_density"),
+            "social_media_confidence": visual_signal.get("social_media_confidence"),
+        }
+
+        best_ref_path = ""
+        if best_sim_result["best_ref_idx"] >= 0 and best_sim_result["best_ref_idx"] < len(reference_bank.reference_paths):
+            best_ref_path = reference_bank.reference_paths[best_sim_result["best_ref_idx"]]
 
         result = CampaignMatchResult(
             campaign_match=campaign_match,
-            confidence=round(calibrated_confidence, 4),
+            confidence=confidence_pct,
+            confidence_raw=round(final_score, 4),
+            confidence_calibrated=round(float(calibrated_conf), 4),
+            score=round(final_score, 4),
             match_type=match_type,
-            top_similarity=round(best_frame_max, 4),
-            average_similarity=round(float(np.mean(all_max_sims)), 4),
-            best_reference=global_best_ref,
+            top_similarity=round(best_max_sim, 4),
+            average_similarity=round(float(np.mean(max_sims)), 4) if max_sims else 0.0,
+            best_reference=best_frame_ref,
+            best_reference_path=best_ref_path,
             best_frame=best_frame_name,
             num_references=len(reference_bank.reference_names),
             num_frames_analyzed=len(images),
             reference_variance=round(reference_bank.variance, 4),
-            threshold_used=round(strong_thresh, 4),
+            thresholds={
+                "strong": round(strong_thresh, 4),
+                "possible": round(possible_thresh, 4),
+            },
             frame_scores=frame_scores_list,
             top_matches=top_matches,
             processing_time_ms=round(elapsed_ms, 1),
-            verdict=verdict,
-            confidence_pct=round(calibrated_confidence * 100, 1),
-            temporal_strength=round(temporal_strength, 4),
-            competitor_similarity=round(best_comp_sim, 4),
-            ambiguity_score=round(ambiguity_score, 4),
-            explainability=explainability,
+            competitor_similarity=round(comp_sim, 4),
+            competitor_margin=round(comp_margin, 4),
+            review_status=review_status,
+            decision_tier=decision_tier,
+            caption_compliance=caption_status,
+            caption_issues=caption_issues or [],
+            caption_summary=caption_summary or {},
             warnings=warnings,
+            explainability=explainability,
             stable_segments=stable_segments,
-            cohesion_metrics=reference_bank.cohesion_metrics,
-            media_context=media_context
+            temporal_strength=round(temporal_strength, 4),
+            media_context=media_context,
+            platform=platform,
+            dominant_cluster=best_frame_cluster,
+            cluster_similarity=round(best_cluster_sim, 4),
+            social_boost=round(total_boost, 4),
+            social_adjustment=round(social_adjustment, 4),
+            product_boost=round(product_boost, 4),
+            visual_boost=round(visual_boost, 4),
+            visual_signal=visual_signal,
+            frame_media=frame_media,
+            heatmap_path=heatmap_path,
         )
 
         if debug_dir:
@@ -1151,19 +1563,29 @@ class CampaignMatcher:
             "type": prefix,
             "campaign_match": result.campaign_match,
             "confidence": result.confidence,
+            "confidence_raw": result.confidence_raw,
+            "confidence_calibrated": result.confidence_calibrated,
+            "score": result.score,
             "match_type": result.match_type,
+            "decision_tier": result.decision_tier,
             "top_similarity": result.top_similarity,
             "average_similarity": result.average_similarity,
             "best_reference": result.best_reference,
+            "best_reference_path": result.best_reference_path,
             "best_frame": result.best_frame,
-            "threshold_used": result.threshold_used,
+            "thresholds": result.thresholds,
             "reference_variance": result.reference_variance,
             "num_references": result.num_references,
             "num_frames": result.num_frames_analyzed,
             "processing_time_ms": result.processing_time_ms,
             "stable_segments": result.stable_segments,
-            "cohesion_metrics": result.cohesion_metrics,
-            "media_context": result.media_context
+            "media_context": result.media_context,
+            "platform": result.platform,
+            "social_adjustment": result.social_adjustment,
+            "product_boost": result.product_boost,
+            "visual_boost": result.visual_boost,
+            "visual_signal": result.visual_signal,
+            "explainability": result.explainability,
         }
 
         with open(os.path.join(debug_dir, f"similarity_debug_{timestamp}.json"), "w") as f:
@@ -1195,17 +1617,37 @@ def match_campaign_image(
     image_source: Union[str, Path, bytes, Image.Image],
     reference_bank: ReferenceBank,
     debug_dir: Optional[str] = None,
+    caption_status: str = "NOT_PROVIDED",
+    caption_issues: Optional[list[str]] = None,
+    caption_summary: Optional[dict] = None,
 ) -> CampaignMatchResult:
     """Match a single image against a campaign reference bank."""
     matcher = CampaignMatcher()
-    return matcher.match_image(image_source, reference_bank, debug_dir)
+    return matcher.match_image(
+        image_source,
+        reference_bank,
+        debug_dir,
+        caption_status=caption_status,
+        caption_issues=caption_issues,
+        caption_summary=caption_summary,
+    )
 
 
 def match_campaign_video(
     frame_paths: list[str],
     reference_bank: ReferenceBank,
     debug_dir: Optional[str] = None,
+    caption_status: str = "NOT_PROVIDED",
+    caption_issues: Optional[list[str]] = None,
+    caption_summary: Optional[dict] = None,
 ) -> CampaignMatchResult:
     """Match video frames against a campaign reference bank."""
     matcher = CampaignMatcher()
-    return matcher.match_video_frames(frame_paths, reference_bank, debug_dir)
+    return matcher.match_video_frames(
+        frame_paths,
+        reference_bank,
+        debug_dir,
+        caption_status=caption_status,
+        caption_issues=caption_issues,
+        caption_summary=caption_summary,
+    )

@@ -143,7 +143,7 @@ class HardNegativeBank:
 
 class CompetitorScorer:
     """
-    Computes competitor proximity, ambiguity levels, and dynamic matching penalties.
+    Computes competitor proximity and review-risk signals without aggressive penalties.
     """
 
     def __init__(self, margin: float = 0.12):
@@ -156,24 +156,24 @@ class CompetitorScorer:
         negative_bank: HardNegativeBank,
     ) -> dict:
         """
-        Compares query similarities against both positive and negative banks using dynamic
-        overlap-aware penalization.
+        Compares query similarities against both positive and negative banks and returns
+        conservative review-risk signals.
 
         Returns:
             dict containing:
                 competitor_similarity: peak competitor similarity
-                ambiguity_score: level of overlap [0, 1]
-                penalty: confidence reduction penalty [0, 1]
-                ambiguity_status: "AMBIGUOUS" | "CLEAR"
+                margin: positive minus competitor similarity
+                needs_review: bool for human review flagging
+                risk_level: "LOW" | "MEDIUM" | "HIGH"
                 best_competitor: name of best matching competitor reference
                 warnings: list of structural issues detected
         """
         if not positive_bank.is_ready:
             return {
                 "competitor_similarity": 0.0,
-                "ambiguity_score": 0.0,
-                "penalty": 0.0,
-                "ambiguity_status": "CLEAR",
+                "margin": 1.0,
+                "needs_review": False,
+                "risk_level": "LOW",
                 "best_competitor": "",
                 "warnings": [],
             }
@@ -182,9 +182,9 @@ class CompetitorScorer:
         if negative_bank is None or not negative_bank.is_ready:
             return {
                 "competitor_similarity": 0.0,
-                "ambiguity_score": 0.0,
-                "penalty": 0.0,
-                "ambiguity_status": "CLEAR",
+                "margin": 1.0,
+                "needs_review": False,
+                "risk_level": "LOW",
                 "best_competitor": "",
                 "warnings": [],
             }
@@ -195,57 +195,33 @@ class CompetitorScorer:
         best_comp_sim = float(competitor_sims[best_comp_idx])
         best_comp_name = negative_bank.names[best_comp_idx]
 
-        # Top-K negative average (captures global overlap with competitor collection)
-        k = min(3, len(competitor_sims))
-        top_k_neg_sim = float(np.sort(competitor_sims)[-k:].mean())
-
-        # Ambient centroid comparison
-        centroid_comp_sim = float(query_embedding @ negative_bank.centroid)
-
-        # Integrated Competitor Overlap score (blend of peak, top-K, and centroid negatives)
-        comp_overlap_score = best_comp_sim * 0.50 + top_k_neg_sim * 0.30 + centroid_comp_sim * 0.20
-
         # 2. Positive similarities for comparison
         pos_sims = positive_bank.embeddings @ query_embedding
         best_pos_sim = float(pos_sims.max())
 
-        # 3. Dynamic margin difference
-        diff = best_pos_sim - comp_overlap_score
-        
-        # Ambiguity is high when diff is small
-        ambiguity_score = 1.0 - np.clip(diff / self.margin, 0.0, 1.0)
-        
-        # Dynamic Overlap-Aware Penalization:
-        # Penalty scales smoothly with absolute competitor strength and proximity.
-        # If competitor is a very close match, apply progressive non-linear penalty.
-        penalty = 0.0
+        # 3. Margin-based review risk
+        margin = float(best_pos_sim - best_comp_sim)
         warnings = []
-        
-        if comp_overlap_score > 0.60:
-            # Multiplicative dynamic penalty: higher overlap score + higher ambiguity -> steeper penalty
-            raw_penalty = ambiguity_score * 0.18 + max(0.0, (comp_overlap_score - 0.65) * 0.22)
-            
-            # Non-linear scaling based on similarity level (sigmoid-like behavior near boundary)
-            scaling_factor = 1.0 / (1.0 + np.exp(-12.0 * (comp_overlap_score - 0.68)))
-            penalty = raw_penalty * scaling_factor
-            
-            # Cap the competitor penalty at 0.35 to maintain retrieval balance
-            penalty = min(0.35, float(penalty))
+        needs_review = False
+        risk_level = "LOW"
 
-        status = "CLEAR"
-        if ambiguity_score > 0.45 or best_comp_sim > 0.72:
-            status = "AMBIGUOUS"
+        if best_comp_sim >= 0.80 or margin <= 0.05:
+            needs_review = True
+            risk_level = "HIGH"
+        elif best_comp_sim >= 0.72 or margin <= 0.08:
+            needs_review = True
+            risk_level = "MEDIUM"
+
+        if needs_review:
             warnings.append(
-                f"Competitor match '{best_comp_name}' (similarity: {best_comp_sim:.3f}) is very close to campaign positive (similarity: {best_pos_sim:.3f}). "
-                f"Active margin: {best_pos_sim - best_comp_sim:.3f}. Competitor penalty applied: {penalty:.3f}."
+                f"Competitor proximity is close (comp: {best_comp_sim:.3f}, margin: {margin:.3f}). Review recommended."
             )
 
         return {
             "competitor_similarity": round(best_comp_sim, 4),
-            "ambiguity_score": round(float(ambiguity_score), 4),
-            "penalty": round(float(penalty), 4),
-            "ambiguity_status": status,
+            "margin": round(margin, 4),
+            "needs_review": needs_review,
+            "risk_level": risk_level,
             "best_competitor": best_comp_name,
-            "centroid_competitor_similarity": round(centroid_comp_sim, 4),
             "warnings": warnings,
         }

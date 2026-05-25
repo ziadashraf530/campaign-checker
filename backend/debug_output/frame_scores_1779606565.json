@@ -1,0 +1,12 @@
+[
+  {
+    "frame_id": "WhatsApp Image 2026-05-21 at 12.22.13.jpeg",
+    "score": 0.7682,
+    "max_similarity": 0.7446,
+    "top_k_avg": 0.7391,
+    "best_reference": "OIP (7).webp",
+    "competitor_similarity": 0.0,
+    "raw_score": 0.7482,
+    "social_boost": 0.02
+  }
+]

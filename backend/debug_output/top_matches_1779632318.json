@@ -1,0 +1,32 @@
+[
+  {
+    "reference_name": "OIP (7).webp",
+    "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP (7).webp",
+    "similarity": 0.7677,
+    "rank": 1
+  },
+  {
+    "reference_name": "OIP87 (4).webp",
+    "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP87 (4).webp",
+    "similarity": 0.7614,
+    "rank": 2
+  },
+  {
+    "reference_name": "OIP88 (2).webp",
+    "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP88 (2).webp",
+    "similarity": 0.7272,
+    "rank": 3
+  },
+  {
+    "reference_name": "OIP.webp",
+    "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\OIP.webp",
+    "similarity": 0.7169,
+    "rank": 4
+  },
+  {
+    "reference_name": "WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "reference_path": "C:\\Users\\ai-03\\Desktop\\strabucks_images\\WhatsApp Image 2026-05-20 at 10.50.42 (4).jpeg",
+    "similarity": 0.6929,
+    "rank": 5
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "timestamp": 1779606565,
+  "type": "single_image",
+  "campaign_match": true,
+  "confidence": 77,
+  "score": 0.7682,
+  "match_type": "POSSIBLE_MATCH",
+  "top_similarity": 0.7446,
+  "average_similarity": 0.6868,
+  "best_reference": "OIP (7).webp",
+  "best_frame": "WhatsApp Image 2026-05-21 at 12.22.13.jpeg",
+  "thresholds": {
+    "strong": 0.82,
+    "possible": 0.67
+  },
+  "reference_variance": 0.031,
+  "num_references": 18,
+  "num_frames": 1,
+  "processing_time_ms": 403.6,
+  "stable_segments": [],
+  "media_context": {
+    "is_social_media": true,
+    "aspect_ratio": 1.6691,
+    "has_overlays": true,
+    "is_mobile_screenshot": false,
+    "has_subtitles": true,
+    "compression_level": 0.038,
+    "suggested_threshold_offset": -0.01,
+    "reasoning": "Subtitle text detected"
+  }
+}

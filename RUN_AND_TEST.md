@@ -24,6 +24,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Note: OCR caption extraction uses `paddleocr` + `paddlepaddle`. Installation can be heavy; if PaddleOCR fails to import, OCR falls back to empty detections and compliance relies on provided captions.
+
 ---
 
 ## 3. Start Backend Server
@@ -37,7 +39,7 @@ Expected root response (`GET /`):
 ```json
 {
   "status": "running",
-  "version": "2.0.0"
+  "version": "3.0.0"
 }
 ```
 
@@ -54,7 +56,7 @@ Expected response:
 ```json
 {
   "status": "healthy",
-  "engine": "siglip + legacy"
+  "engine": "siglip"
 }
 ```
 
@@ -126,7 +128,31 @@ Expected output:
 
 ---
 
-## 9. Run Full Verification Suite
+## 9. Run Unit Tests (Pytest)
+
+From the `backend` folder:
+```bash
+python -m pytest
+```
+
+---
+
+
+## 10. Run Final Validation Script
+
+From the `backend` folder:
+```bash
+python final_validation.py
+```
+
+To run smoke checks + pytest + full verification + robustness evaluation:
+```bash
+python final_validation.py --all
+```
+
+---
+
+## 11. Run Full Verification Suite
 
 From the `backend` folder, run the mathematical and cache integrity tests:
 ```bash
@@ -142,7 +168,7 @@ Expected checks:
 
 ---
 
-## 10. Run Robustness Evaluation
+## 12. Run Robustness Evaluation
 
 From the `backend` folder, execute the visual degradation benchmark suite:
 ```bash
@@ -159,7 +185,7 @@ Expected checks:
 
 ---
 
-## 11. Debug Outputs
+## 13. Debug Outputs
 
 During dry runs or debugging cycles, look for the following generated JSON logs in the backend directory:
 ```bash
@@ -175,7 +201,7 @@ Use these files to:
 
 ---
 
-## 12. Recommended First Real Test
+## 14. Recommended First Real Test
 
 To thoroughly validate the engine's real-world capabilities, try:
 1. Loading **5–10** clean Starbucks campaign references in `positive_refs/`.
@@ -190,7 +216,7 @@ Observe how the engine:
 
 ---
 
-## 13. CUDA / GPU Acceleration
+## 15. CUDA / GPU Acceleration
 
 Verify if PyTorch can detect and route tasks to an active NVIDIA GPU:
 ```python
@@ -202,7 +228,7 @@ If it prints `True`, the `SigLIPEngine` will automatically utilize GPU accelerat
 
 ---
 
-## 14. Common Troubleshooting
+## 16. Common Troubleshooting
 
 ### `protobuf` missing
 ```bash
@@ -219,7 +245,7 @@ Ensure `ffmpeg` is installed on your local operating system and added to your sy
 
 ---
 
-## 15. Success Criteria
+## 17. Success Criteria
 
 The campaign matching engine is verified production-ready when:
 * ✅ **Positive campaigns** confidently yield `STRONG_MATCH` decisions.

@@ -6,7 +6,7 @@ import shutil
 import urllib.request
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff"}
 VIDEO_EXTS = {"mp4", "avi", "mov", "mkv", "webm"}
@@ -34,6 +34,14 @@ def is_supported_media_file(path: str) -> bool:
 
 def download_media_from_url(url: str, download_dir: Optional[Path] = None) -> tuple[list[str], Optional[str]]:
     download_dir = Path(download_dir) if download_dir else ensure_download_dir()
+
+    local_path = _resolve_local_path(url)
+    if local_path:
+        if local_path.is_file() and is_supported_media_file(str(local_path)):
+            return [str(local_path)], None
+        if local_path.is_file():
+            return [], "Local file is not a supported media type"
+        return [], "Local path is not a file"
 
     if _is_direct_media_url(url):
         return _download_direct(url, download_dir)
@@ -106,3 +114,18 @@ def _ext_from_url(url: str) -> str:
 
 def _is_direct_media_url(url: str) -> bool:
     return bool(_ext_from_url(url))
+
+
+def _resolve_local_path(url: str) -> Optional[Path]:
+    if not url:
+        return None
+    if url.startswith("file://"):
+        parsed = urlparse(url)
+        path = unquote(parsed.path)
+        if os.name == "nt" and path.startswith("/"):
+            path = path.lstrip("/")
+        candidate = Path(path)
+        return candidate if candidate.exists() else None
+
+    candidate = Path(url)
+    return candidate if candidate.exists() else None

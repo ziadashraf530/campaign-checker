@@ -1,11 +1,8 @@
-# Architecture Design Document — Visual Campaign Matching & Verification System
-
 This document outlines the architectural details of the **SigLIP-based visual campaign verification system**, detailing the model choices, pipelines, similarity metrics, and frontend interface.
-
 ---
 
 ## 1. Architectural Blueprint
-
+  
 The system consists of a visual feature extractor, reference cache, mathematical similarity computation, dynamic thresholds calibration, and a client visual panel:
 
 ```
@@ -73,7 +70,7 @@ The system consists of a visual feature extractor, reference cache, mathematical
   │ - Top matching reference list                 │
   │ - Keyframe analyzer timeline                 │
   └───────────────────────────────────────────────┘
-```
+``` 
 
 ---
 
@@ -95,21 +92,19 @@ The system consists of a visual feature extractor, reference cache, mathematical
 
 ### 2.3 Hard Negative Bank & Competitor Suppression (`HardNegativeBank` & `CompetitorScorer`)
 - **Hard Negative Bank**: Loads and caches distractor brand representations (e.g. competitor logos, mock visual campaigns) inside a sibling subdirectory `hard_negatives/` nested within the campaign reference folder.
-- **Competitor Scorer**: Computes the margin of separation between the target embedding, the positive bank, and the nearest hard negative.
-  - **Competitor Proximity**: Cosine similarity to the closest competitor:
+- **Competitor Scorer**: Computes conservative review signals (no automatic penalties) based on the separation between positive and negative similarities.
+  - **Competitor Proximity**: Cosine similarity to the closest competitor:# Architecture Design Document — Visual Campaign Matching & Verification System
+
     $$S_{comp} = \max_{j} (\mathbf{e}_{target} \cdot \mathbf{n}_j)$$
   - **Cosine Similarity Margin**:
-    $$M = S_{blended} - S_{comp}$$
-  - **Penalty Calculation**: If the target embedding encroaches upon competitor territory (margin below the `0.12` decision boundary), a penalty proportional to the encroachment is applied to suppress false alarms:
-    $$P = \max\left(0, \frac{\text{margin\_threshold} - M}{\text{margin\_threshold}}\right) \cdot \text{scale}$$
-  - **Decision Ambiguity Index**: Computes the ratio of similarity overlap between the candidate match and competitor bank, indicating retrieval uncertainty:
-    $$A = \frac{S_{comp}}{S_{blended} + \epsilon}$$
+    $$M = S_{pos} - S_{comp}$$
+  - **Review Risk Flags**: Marks matches for human review if $S_{comp} \ge 0.72$ or $M \le 0.08$, and emits warning strings for explainability.
 
 ### 2.4 Temporal Video Smoothing (`TemporalEngine`)
 - **Rolling Window Bartlett Smoothing**: Eliminates false positives from brief frame flashes and transient visual spikes. Applies a symmetric triangular Bartlett-like sliding kernel across adjacent frame scores:
     $$S_{smoothed}[t] = \sum_{k=-W}^{W} w[k] \cdot S_{raw}[t+k]$$
 - **Peak Frame Continuity Scorer**: Evaluates whether the brand match is sustained across contiguous video intervals. Sustained visual presence is rewarded, whereas random single-frame spikes are heavily penalized.
-- **Multi-Frame Continuity Verdict**: Fuses metrics from the highest contiguous sequence. The final match rating incorporates a `temporal_strength` bonus when consecutive frames stay above the calibration boundary.
+- **Multi-Frame Continuity Verdict**: Fuses metrics from the highest contiguous sequence. The final match rating incorporates a `temporal_strength` signal alongside smoothed peaks rather than hard vetoes.
 
 ### 2.5 Explainability & Diagnostic Warnings Engine (`FalsePositiveAnalyzer` & `RetrievalDebugger`)
 - **False Positive Analyzer**: Compiles and runs deep rule-based heuristics on visual cues, warning the user about potential matching issues:
@@ -149,6 +144,29 @@ Rather than flat static levels, thresholds are computed dynamically based on the
 - **Telemetry Archiver**: Diagnostic logging tracks near-misses, high-competitor encroachment cases, and rapid visual spike anomalies.
 - **Disk Archiving**: Automatically serializes near-boundary queries, compressed target embeddings (`.npz` matrices), scores, thresholds, and metadata under a structured storage folder: `embedding_cache/failure_cases/`.
 
+### 2.11 Visual Signal Analyzer (`VisualSignalEngine`)
+- Computes logo prominence, product focus, branding density, and social layout confidence.
+- Generates **confidence boosts** that are strictly additive and capped before Platt calibration.
+- Emits `visual_signal` telemetry and structured boost reasons for explainability.
+
+### 2.12 Social Context Parser (`SocialContextParser`)
+- Detects short-form platforms (TikTok, Instagram Reels, YouTube Shorts) using filename and overlay cues.
+- Attaches `platform` metadata to each result for UI badges and analytics.
+
+### 2.13 OCR Caption & Compliance (`OcrCaptionEngine`, `CaptionComplianceEngine`)
+- Runs PaddleOCR (if available) against platform-aware caption zones; falls back to empty detections when unavailable.
+- Produces structured `ocr_output` (caption, hashtags, mentions, disclosures, promo phrases, platform) plus `ocr_debug` regions/detections for UI overlays.
+- Evaluates compliance rules into a `compliance_report` with score, status, violations, and missing rules.
+
+### 2.14 Decision Policy & Review Tiers (`DecisionPolicy`)
+- Applies social-media-aware upgrade logic (mid-range similarity + strong branding + low competitor overlap).
+- Produces review tiers: `VERIFIED_MATCH`, `HIGH_CONFIDENCE_MATCH`, `REVIEW_REQUIRED`, `NO_MATCH`.
+- Keeps legacy `match_type` for summary aggregation.
+
+### 2.15 Visual Heatmap Renderer (`VisualHeatmapRenderer`)
+- Generates saliency heatmap overlays from gradient magnitude maps.
+- Saves best-frame overlays to `temp_frames/` for on-demand UI visualization.
+
 ---
 
 ## 3. Technology Stack & API Details
@@ -173,23 +191,27 @@ Rather than flat static levels, thresholds are computed dynamically based on the
       "results": [
         {
           "file": "promo_video.mp4",
-          "verdict": "STRONG_MATCH",
-          "confidence": 0.8942,
+          "campaign_match": true,
+          "match_type": "STRONG_MATCH",
+          "confidence": 89,
+          "score": 0.8942,
           "top_similarity": 0.9412,
           "average_similarity": 0.8754,
-          "threshold_used": 0.7250,
+          "thresholds": {"strong": 0.78, "possible": 0.70},
+          "review_status": "APPROVED",
+          "caption_compliance": "PASS",
           "num_frames_analyzed": 10,
           "processing_time_ms": 240,
           "best_reference": "starbucks_logo_cup.png",
           "competitor_similarity": 0.5420,
-          "ambiguity_score": 0.1230,
+          "competitor_margin": 0.1830,
           "warnings": [],
           "frame_scores": [
             {
               "frame_id": "frame_0000",
+              "score": 0.8950,
               "max_similarity": 0.9102,
               "raw_score": 0.9102,
-              "smoothed_similarity": 0.8950,
               "competitor_similarity": 0.5100,
               "best_reference": "starbucks_logo_cup.png"
             }

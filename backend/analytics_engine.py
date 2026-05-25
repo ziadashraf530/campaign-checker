@@ -147,6 +147,21 @@ class ScoreAnalyticsEngine:
             # Classify platform based on filename keywords or context clues
             fname = r.get("filename", "").lower()
             reasons = ctx.get("reasoning", "").lower()
+            detected_platform = (r.get("platform") or "").lower()
+
+            if detected_platform:
+                if detected_platform == "tiktok":
+                    platform_counts["tiktok"] += 1
+                    continue
+                if detected_platform in {"instagram", "instagram_reels"}:
+                    platform_counts["instagram"] += 1
+                    continue
+                if detected_platform in {"youtube_shorts", "shorts"}:
+                    platform_counts["youtube_shorts"] += 1
+                    continue
+                if detected_platform == "generic_social":
+                    platform_counts["generic_social"] += 1
+                    continue
             
             if "tiktok" in fname or "tiktok" in reasons:
                 platform_counts["tiktok"] += 1

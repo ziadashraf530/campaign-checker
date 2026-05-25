@@ -1,0 +1,12 @@
+{
+  "timestamp": 1779693295968,
+  "filename": "keyframe_000120.jpg",
+  "similarity_score": 0.6334,
+  "competitor_similarity": 0.0,
+  "competitor_margin": 1.0,
+  "match_type": "NO_MATCH",
+  "match_threshold": 0.6458,
+  "is_near_miss": true,
+  "is_ambiguous": false,
+  "warnings": []
+}

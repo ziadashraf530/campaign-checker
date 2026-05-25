@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
+import MediaReviewModal from './media_review_modal'
+
+const MAX_PROGRESS_LOG = 120
 
 export default function App() {
   const [mode, setMode] = useState(() => {
@@ -51,6 +54,14 @@ export default function App() {
   const [progressDetail, setProgressDetail] = useState('')
   const [progressStep, setProgressStep] = useState('')
 
+  // Media review modal state
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
+  const [reviewPayload, setReviewPayload] = useState(null)
+
+  // Progress ETA tracking
+  const progressStartRef = useRef(null)
+  const [etaSeconds, setEtaSeconds] = useState(null)
+
   // Sync to localStorage
   useEffect(() => {
     if (siglipData) {
@@ -75,6 +86,26 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('campaign_checker_api_port', apiPort)
   }, [apiPort])
+
+  useEffect(() => {
+    if (!loading) {
+      progressStartRef.current = null
+      setEtaSeconds(null)
+      return
+    }
+
+    if (progressPct === 0) {
+      progressStartRef.current = Date.now()
+      setEtaSeconds(null)
+      return
+    }
+
+    if (progressStartRef.current) {
+      const elapsed = (Date.now() - progressStartRef.current) / 1000
+      const remaining = progressPct > 0 ? Math.round((elapsed * (100 - progressPct)) / progressPct) : null
+      setEtaSeconds(Number.isFinite(remaining) ? remaining : null)
+    }
+  }, [loading, progressPct])
 
   const handleNewCoverage = () => {
     setSiglipData(null)
@@ -139,7 +170,7 @@ export default function App() {
     const excelPath = siglipExcelPathRef.current ? siglipExcelPathRef.current.value.trim() : ''
 
     if (!refPath || (!targetPath && !excelPath)) {
-      setError('Please provide the reference folder and either a target path or an Excel path.')
+      setError('من فضلك حط مجلد المراجع وكمان ملف هدف او ملف Excel.')
       return
     }
 
@@ -149,7 +180,7 @@ export default function App() {
     setExpandedCards({})
     setProgressLog([])
     setProgressPct(0)
-    setProgressDetail('Connecting to AI matching engine...')
+    setProgressDetail('بنوصّل بمحرك المطابقة...')
     setProgressStep('init')
 
     try {
@@ -205,17 +236,18 @@ export default function App() {
                   if (prev.length > 0 && prev[prev.length - 1].detail === data.detail) {
                     return prev
                   }
-                  return [...prev, {
+                  const next = [...prev, {
                     timestamp: new Date().toLocaleTimeString(),
                     step: data.step,
                     detail: data.detail,
                     pct: data.pct
                   }]
+                  return next.length > MAX_PROGRESS_LOG ? next.slice(-MAX_PROGRESS_LOG) : next
                 })
               } else if (data.type === 'result') {
                 setSiglipData(data)
                 setProgressPct(100)
-                setProgressDetail('Analysis complete!')
+                setProgressDetail('التحليل خلص!')
                 setProgressStep('complete')
               } else if (data.type === 'error') {
                 setError(data.error)
@@ -227,7 +259,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      setError('Connection failed: ' + err.message)
+      setError('فشل الاتصال: ' + err.message)
     } finally {
       setLoading(false)
     }
@@ -240,7 +272,12 @@ export default function App() {
     const excelPath = legacyExcelPathRef.current ? legacyExcelPathRef.current.value.trim() : ''
 
     if (!brand) {
-      setError('Please provide a brand name for analysis.')
+      setError('من فضلك اكتب اسم العلامة.')
+      return
+    }
+
+    if (!refPath) {
+      setError('من فضلك حط مسار شعارات المرجع.')
       return
     }
 
@@ -266,11 +303,11 @@ export default function App() {
         const results = res.data.results || []
         setLegacyResults(results)
         if (results.length === 0) {
-          setError('No posts found to analyze. Check files and paths.')
+          setError('مفيش بوستات للتحليل. راجع المسارات.')
         }
       }
     } catch (err) {
-      setError('Connection failed: ' + (err.response?.data?.detail || err.message))
+      setError('فشل الاتصال: ' + (err.response?.data?.detail || err.message))
     } finally {
       setLoading(false)
     }
@@ -289,35 +326,219 @@ export default function App() {
   // Format verdict display for results
   const renderVerdictBadge = (matchType) => {
     switch (matchType) {
+      case 'VERIFIED_MATCH':
+        return <span className="badge verified"><i className="fa-solid fa-circle-check"></i> مطابقة مؤكدة</span>
+      case 'HIGH_CONFIDENCE_MATCH':
+        return <span className="badge high"><i className="fa-solid fa-circle-check"></i> ثقة عالية</span>
+      case 'REVIEW_REQUIRED':
+        return <span className="badge review"><i className="fa-solid fa-eye"></i> محتاج مراجعة</span>
+      case 'UNCERTAIN':
+        return <span className="badge uncertain"><i className="fa-solid fa-circle-question"></i> غير واضح</span>
+      case 'REJECTED':
+        return <span className="badge rejected"><i className="fa-solid fa-circle-xmark"></i> مرفوض</span>
       case 'STRONG_MATCH':
-        return <span className="badge strong"><i className="fa-solid fa-circle-check"></i> Strong Match</span>
+        return <span className="badge strong"><i className="fa-solid fa-circle-check"></i> مطابقة قوية</span>
       case 'PROBABLE_STRONG_MATCH':
-        return <span className="badge probable"><i className="fa-solid fa-circle-check"></i> Probable Match</span>
+        return <span className="badge probable"><i className="fa-solid fa-circle-check"></i> غالبا مطابقة قوية</span>
       case 'POSSIBLE_MATCH':
-        return <span className="badge possible"><i className="fa-solid fa-circle-question"></i> Possible Match</span>
+        return <span className="badge possible"><i className="fa-solid fa-circle-question"></i> مطابقة محتملة</span>
+      case 'NO_MATCH':
+        return <span className="badge none"><i className="fa-solid fa-circle-xmark"></i> مش مطابق</span>
       default:
-        return <span className="badge none"><i className="fa-solid fa-circle-xmark"></i> No Match</span>
+        return <span className="badge none"><i className="fa-solid fa-circle-xmark"></i> مش مطابق</span>
     }
+  }
+
+  const formatMatchLabel = (matchType) => {
+    if (!matchType) return 'UNKNOWN'
+    if (matchType === 'VERIFIED_MATCH') return 'مطابقة مؤكدة'
+    if (matchType === 'HIGH_CONFIDENCE_MATCH') return 'مطابقة بثقة عالية'
+    if (matchType === 'REVIEW_REQUIRED') return 'محتاج مراجعة'
+    if (matchType === 'UNCERTAIN') return 'غير واضح'
+    if (matchType === 'REJECTED') return 'مرفوض'
+    if (matchType === 'STRONG_MATCH') return 'مطابقة قوية'
+    if (matchType === 'PROBABLE_STRONG_MATCH') return 'غالبا مطابقة قوية'
+    if (matchType === 'POSSIBLE_MATCH') return 'مطابقة محتملة'
+    if (matchType === 'NO_MATCH') return 'مش مطابق'
+    return matchType
+  }
+
+  const getScoreValue = (res) => {
+    if (Number.isFinite(res?.score)) return res.score
+    if (Number.isFinite(res?.confidence)) {
+      return res.confidence > 1 ? res.confidence / 100 : res.confidence
+    }
+    if (Number.isFinite(res?.confidence_pct)) return res.confidence_pct / 100
+    return 0
+  }
+
+  const getConfidencePct = (res) => {
+    if (Number.isFinite(res?.confidence) && res.confidence > 1) {
+      return Math.round(res.confidence)
+    }
+    if (Number.isFinite(res?.confidence_pct)) return Math.round(res.confidence_pct)
+    const scoreValue = getScoreValue(res)
+    return Math.round(scoreValue * 100)
+  }
+
+  const getPossibleThreshold = (res) => {
+    if (Number.isFinite(res?.thresholds?.possible)) return res.thresholds.possible
+    if (Number.isFinite(res?.threshold_used)) return res.threshold_used
+    return null
   }
 
   // Get matching classification CSS state
   const getMatchClass = (matchType) => {
+    if (matchType === 'VERIFIED_MATCH') return 'verified';
+    if (matchType === 'HIGH_CONFIDENCE_MATCH') return 'high';
+    if (matchType === 'REVIEW_REQUIRED') return 'review';
+    if (matchType === 'UNCERTAIN') return 'uncertain';
+    if (matchType === 'REJECTED') return 'rejected';
     if (matchType === 'STRONG_MATCH') return 'strong';
     if (matchType === 'PROBABLE_STRONG_MATCH') return 'probable';
     if (matchType === 'POSSIBLE_MATCH') return 'possible';
+    if (matchType === 'NO_MATCH') return 'none';
     return 'none';
   }
+
+  const resolveDecisionTier = (res) => res?.decision_tier || res?.match_type || 'UNKNOWN'
+
+  const resolveFinalTier = (res) => {
+    if (!res) return 'UNKNOWN'
+    if (res.decision_tier) return res.decision_tier
+    if (res.review_status === 'REJECTED') return 'NO_MATCH'
+    if (res.review_status === 'REVIEW') return 'REVIEW_REQUIRED'
+    if (res.review_status === 'APPROVED') {
+      if (res.match_type === 'STRONG_MATCH') return 'VERIFIED_MATCH'
+      if (res.match_type === 'POSSIBLE_MATCH') return 'HIGH_CONFIDENCE_MATCH'
+    }
+    return res.match_type || 'UNKNOWN'
+  }
+
+  const computeSummaryCounts = (data) => {
+    const results = data?.results || []
+    const tierCounts = data?.tier_counts || {}
+    if (Object.keys(tierCounts).length > 0) {
+      return {
+        total: data?.summary?.num_targets ?? results.length,
+        verified: tierCounts.VERIFIED_MATCH || 0,
+        high: tierCounts.HIGH_CONFIDENCE_MATCH || 0,
+        review: tierCounts.REVIEW_REQUIRED || 0,
+        rejected: tierCounts.NO_MATCH || 0,
+      }
+    }
+
+    const counts = { total: results.length, verified: 0, high: 0, review: 0, rejected: 0 }
+    results.forEach((res) => {
+      const tier = resolveFinalTier(res)
+      if (tier === 'VERIFIED_MATCH') counts.verified += 1
+      else if (tier === 'HIGH_CONFIDENCE_MATCH') counts.high += 1
+      else if (tier === 'REVIEW_REQUIRED') counts.review += 1
+      else if (tier === 'NO_MATCH') counts.rejected += 1
+      else if (tier === 'STRONG_MATCH') counts.verified += 1
+      else if (tier === 'POSSIBLE_MATCH') counts.review += 1
+    })
+    return counts
+  }
+
+  const boostReasonTranslations = {
+    social_layout: 'تم رفع نسبة التطابق بسبب اكتشاف واجهة اجتماعية واضحة',
+    platform_ui: 'تم رفع نسبة التطابق بسبب مؤشرات منصة قصيرة (تيك توك/ريلز/شورتس)',
+    social_confidence: 'تم رفع نسبة التطابق بسبب ثقة عالية في تخطيط الوسائط الاجتماعية',
+    logo_prominence: 'تم رفع نسبة التطابق بسبب ظهور شعار العلامة بوضوح وتمركز المنتج',
+    brand_density: 'تم رفع نسبة التطابق بسبب هيمنة ألوان العلامة وتوافق المراجع',
+    cluster_agreement: 'تم رفع نسبة التطابق بسبب توافق قوي مع عنقود المراجع',
+  }
+
+  const getBoostReasonText = (reason) => {
+    if (!reason) return ''
+    if (reason.code && boostReasonTranslations[reason.code]) return boostReasonTranslations[reason.code]
+    return reason.detail || ''
+  }
+
+  const complianceStatusLabel = (status) => {
+    if (status === 'PASS') return 'مطابق'
+    if (status === 'FAIL') return 'غير مطابق'
+    if (status === 'REVIEW') return 'مراجعة'
+    if (status === 'NOT_PROVIDED') return 'مش متوفر'
+    return status || 'غير معروف'
+  }
+
+  const formatComplianceIssue = (issue) => {
+    if (!issue) return ''
+    if (issue.startsWith('Missing hashtag:')) return `هاشتاج ناقص ${issue.split(': ').slice(1).join(': ')}`
+    if (issue.startsWith('Missing mention:')) return `منشن ناقص ${issue.split(': ').slice(1).join(': ')}`
+    if (issue.startsWith('Missing phrase:')) return `جملة ناقصة ${issue.split(': ').slice(1).join(': ')}`
+    if (issue.startsWith('Forbidden term:')) return `كلمة ممنوعة ${issue.split(': ').slice(1).join(': ')}`
+    if (issue.startsWith('Avoid promo phrase:')) return `بلاش جملة ترويجية ${issue.split(': ').slice(1).join(': ')}`
+    if (issue.startsWith('Promo phrase detected:')) return `تم اكتشاف جملة ترويجية ${issue.split(': ').slice(1).join(': ')}`
+    return issue
+  }
+
+  const openMediaReview = (res) => {
+    if (!res) return
+    const fallbackFrame = {
+      frame_id: res.best_frame || res.filename || 'target',
+      frame_path: res.file,
+      score: res.score || 0,
+      is_best: true,
+      heatmap_path: res.heatmap_path || '',
+    }
+
+    const mediaItems = Array.isArray(res.frame_media) && res.frame_media.length > 0
+      ? res.frame_media
+      : [fallbackFrame]
+
+    setReviewPayload({
+      mediaItems,
+      sourceFile: res.file,
+      sourceFilename: res.filename,
+      bestReferencePath: res.best_reference_path || '',
+      bestReferenceName: res.best_reference || '',
+      decisionTier: resolveDecisionTier(res),
+      ocrDebug: res.ocr_debug || null,
+      ocrOutput: res.ocr_output || null,
+    })
+    setReviewModalOpen(true)
+  }
+
+  const stagePipeline = [
+    { key: 'LOADING_REFERENCES', labelAr: 'تحميل المراجع' },
+    { key: 'EXTRACTING_FRAMES', labelAr: 'استخراج الفريمات' },
+    { key: 'OCR_CAPTION', labelAr: 'تحليل الكابشن' },
+    { key: 'HASHTAG_CHECK', labelAr: 'فحص الهاشتاجات' },
+    { key: 'RULE_EVAL', labelAr: 'تقييم الالتزام' },
+    { key: 'VISUAL_SIMILARITY', labelAr: 'تحليل التشابه' },
+    { key: 'LOGO_ANALYSIS', labelAr: 'تحليل اللوجو' },
+    { key: 'FINALIZING_RESULTS', labelAr: 'إنهاء النتائج' },
+  ]
+
+  const mapStepToStage = (step) => {
+    if (step === 'INITIALIZING' || step === 'LOADING_REFERENCES') return 0
+    if (step === 'EXTRACTING_FRAMES') return 1
+    if (step === 'OCR_CAPTION') return 2
+    if (step === 'HASHTAG_CHECK') return 3
+    if (step === 'RULE_EVAL') return 4
+    if (step === 'VISUAL_SIMILARITY') return 5
+    if (step === 'LOGO_ANALYSIS') return 6
+    if (step === 'FINALIZING_RESULTS' || step === 'complete') return 7
+    return 0
+  }
+
+  const activeStageIndex = mapStepToStage(progressStep)
+
+  const summaryCounts = computeSummaryCounts(siglipData)
 
   return (
     <div className="app-container">
       {/* Top Header */}
       <header>
         <div className="logo-section">
-          <h1><i className="fa-solid fa-bolt-lightning"></i> Campaign Checker</h1>
-          <p>Next-gen visual verification & campaign matching platform</p>
+          <h1><i className="fa-solid fa-bolt-lightning"></i> فحص الحملة</h1>
+          <p>منصة مطابقة بصرية ذكية وتحليل حملات السوشيال</p>
         </div>
         <div className="engine-badge">
-          <span></span> SigLIP v1.2 Engine Active
+          <span></span> محرك SigLIP v1.2 شغال
         </div>
       </header>
 
@@ -326,16 +547,16 @@ export default function App() {
         
         {/* Left Side: Parameters / Control Panel */}
         <section className="panel-card">
-          <h2><i className="fa-solid fa-sliders"></i> Control Center</h2>
+          <h2><i className="fa-solid fa-sliders"></i> لوحة التحكم</h2>
 
           {/* API Server Port Config */}
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-            <label>API Server Port</label>
+            <label>بورت السيرفر</label>
             <div className="input-wrapper">
               <input 
                 type="text"
                 className="form-control"
-                placeholder="e.g. 8001"
+                placeholder="مثال: 8001"
                 value={apiPort}
                 onChange={(e) => setApiPort(e.target.value.trim())}
               />
@@ -349,13 +570,13 @@ export default function App() {
               className={`mode-btn ${mode === 'siglip' ? 'active' : ''}`}
               onClick={() => { setMode('siglip'); setError(null); }}
             >
-              <i className="fa-solid fa-fingerprint"></i> SigLIP Matcher
+              <i className="fa-solid fa-fingerprint"></i> مطابقة SigLIP
             </button>
             <button 
               className={`mode-btn ${mode === 'legacy' ? 'active' : ''}`}
               onClick={() => { setMode('legacy'); setError(null); }}
             >
-              <i className="fa-solid fa-magnifying-glass"></i> Legacy Analyzer
+              <i className="fa-solid fa-magnifying-glass"></i> التحليل القديم
             </button>
           </div>
 
@@ -363,12 +584,12 @@ export default function App() {
           {mode === 'siglip' ? (
             <div>
               <div className="form-group">
-                <label>Reference Campaign Directory</label>
+                <label>مجلد الصور المرجعية للحملة</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipRefPathRef}
                     className="form-control"
-                    placeholder="e.g. data/reference_camp"
+                    placeholder="مثال: data/reference"
                     defaultValue="data/reference"
                   />
                   <i className="fa-solid fa-folder-open"></i>
@@ -376,12 +597,12 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Target File or Folder Path (Optional if using Excel)</label>
+                <label>مسار الملف او المجلد الهدف (اختياري لو Excel)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipTargetPathRef}
                     className="form-control"
-                    placeholder="e.g. data/influencer_post.mp4"
+                    placeholder="مثال: data/influencer_post.mp4"
                     defaultValue="data"
                   />
                   <i className="fa-solid fa-bullseye"></i>
@@ -389,26 +610,26 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Excel File Path (Optional)</label>
+                <label>مسار ملف Excel (اختياري)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipExcelPathRef}
                     className="form-control"
-                    placeholder="e.g. C:\\data\\posts.xlsx"
+                    placeholder="مثال: C:\\data\\posts.xlsx"
                     defaultValue=""
                   />
                   <i className="fa-solid fa-file-excel"></i>
                 </div>
-                <div className="form-hint">Auto-detects username + link columns.</div>
+                <div className="form-hint">بيحدد اعمدة اليوزر واللينك تلقائي.</div>
               </div>
 
               <div className="form-group">
-                <label>Campaign Tag / Name</label>
+                <label>اسم الحملة</label>
                 <div className="input-wrapper">
                   <input 
                     ref={siglipCampaignNameRef}
                     className="form-control"
-                    placeholder="e.g. summer_promo_2026"
+                    placeholder="مثال: summer_promo_2026"
                     defaultValue="summer_promo"
                   />
                   <i className="fa-solid fa-tag"></i>
@@ -422,7 +643,7 @@ export default function App() {
                   onChange={(e) => setSiglipDebug(e.target.checked)}
                 />
                 <div className="custom-checkbox"></div>
-                <span>Export debug files to backend</span>
+                <span>تصدير ملفات الديباج للسيرفر</span>
               </label>
 
               <button 
@@ -432,11 +653,11 @@ export default function App() {
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing...
+                    <i className="fa-solid fa-circle-notch fa-spin"></i> جاري التحليل...
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> Verify Campaign
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> تحقق من الحملة
                   </>
                 )}
               </button>
@@ -444,12 +665,12 @@ export default function App() {
           ) : (
             <div>
               <div className="form-group">
-                <label>Brand Name to Search</label>
+                <label>اسم العلامة للبحث</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyBrandRef}
                     className="form-control"
-                    placeholder="e.g. Nike, Coca-Cola"
+                    placeholder="مثال: Nike, Coca-Cola"
                     defaultValue=""
                   />
                   <i className="fa-solid fa-copyright"></i>
@@ -457,12 +678,12 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Target File or Folder (Optional)</label>
+                <label>مسار الملف او المجلد (اختياري)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyTargetPathRef}
                     className="form-control"
-                    placeholder="e.g. data"
+                    placeholder="مثال: data"
                     defaultValue=""
                   />
                   <i className="fa-solid fa-file-invoice"></i>
@@ -470,12 +691,12 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Reference Logos Path (Optional)</label>
+                <label>مسار شعارات المرجع (اختياري)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyRefPathRef}
                     className="form-control"
-                    placeholder="e.g. data/logos"
+                    placeholder="مثال: data/logos"
                     defaultValue=""
                   />
                   <i className="fa-solid fa-images"></i>
@@ -483,17 +704,17 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Excel File Path (Optional)</label>
+                <label>مسار ملف Excel (اختياري)</label>
                 <div className="input-wrapper">
                   <input 
                     ref={legacyExcelPathRef}
                     className="form-control"
-                    placeholder="e.g. C:\\data\\posts.xlsx"
+                    placeholder="مثال: C:\\data\\posts.xlsx"
                     defaultValue=""
                   />
                   <i className="fa-solid fa-file-excel"></i>
                 </div>
-                <div className="form-hint">Auto-detects username + link columns.</div>
+                <div className="form-hint">بيحدد اعمدة اليوزر واللينك تلقائي.</div>
               </div>
 
               <button 
@@ -503,11 +724,11 @@ export default function App() {
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i> Scanning Logos...
+                    <i className="fa-solid fa-circle-notch fa-spin"></i> جاري فحص اللوجوهات...
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-search"></i> Run Logo Analysis
+                    <i className="fa-solid fa-search"></i> تشغيل تحليل اللوجوهات
                   </>
                 )}
               </button>
@@ -531,9 +752,14 @@ export default function App() {
               <div className="progress-panel-header">
                 <div className="progress-status">
                   <div className="loading-spinner-small"></div>
-                  <h3>AI Verification Pipeline Active</h3>
+                  <h3>خط التحقق شغال</h3>
                 </div>
-                <span className="progress-pct-badge">{progressPct}%</span>
+                <div className="progress-meta">
+                  {etaSeconds !== null && (
+                    <span className="progress-eta">الوقت المتبقي ~ {etaSeconds}ث</span>
+                  )}
+                  <span className="progress-pct-badge">{progressPct}%</span>
+                </div>
               </div>
 
               {/* Progress Bar */}
@@ -544,14 +770,28 @@ export default function App() {
                 ></div>
               </div>
 
+              <div className="progress-stage-list">
+                {stagePipeline.map((stage, idx) => {
+                  const state = idx < activeStageIndex ? 'complete' : idx === activeStageIndex ? 'active' : 'pending'
+                  return (
+                    <div key={stage.key} className={`progress-stage ${state}`}>
+                      <div className="stage-dot"></div>
+                      <div className="stage-label">
+                        <span className="stage-ar">{stage.labelAr}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
               {/* Current Active Step */}
               <div className="current-step-card">
                 <div className="step-indicator pulse">
                   <i className="fa-solid fa-gear fa-spin"></i>
                 </div>
                 <div className="step-info">
-                  <div className="step-title">Current Phase: <span className="mono">{progressStep.toUpperCase()}</span></div>
-                  <p className="step-detail">{progressDetail}</p>
+                  <div className="step-title">المرحلة الحالية: <span className="mono">{progressStep.toUpperCase()}</span></div>
+                  <p className="step-detail arabic">{stagePipeline[activeStageIndex]?.labelAr || progressDetail}</p>
                 </div>
               </div>
 
@@ -563,13 +803,13 @@ export default function App() {
                     <span className="btn-term yellow"></span>
                     <span className="btn-term green"></span>
                   </div>
-                  <span className="terminal-title">system_telemetry_stream.log</span>
+                  <span className="terminal-title">سجل المتابعة</span>
                 </div>
                 <div className="log-terminal-body">
                   {progressLog.map((log, index) => (
                     <div key={index} className="log-line">
                       <span className="log-time">[{log.timestamp}]</span>
-                      <span className="log-tag">[SYSTEM]</span>
+                      <span className="log-tag">[نظام]</span>
                       <span className="log-text">{log.detail}</span>
                       <span className="log-status-icon"><i className="fa-solid fa-check"></i></span>
                     </div>
@@ -577,7 +817,7 @@ export default function App() {
                   {progressDetail && progressStep !== 'complete' && (
                     <div className="log-line active">
                       <span className="log-time">[{new Date().toLocaleTimeString()}]</span>
-                      <span className="log-tag">[RUNNING]</span>
+                      <span className="log-tag">[شغال]</span>
                       <span className="log-text">{progressDetail}...</span>
                       <span className="log-status-icon blinking">█</span>
                     </div>
@@ -591,8 +831,8 @@ export default function App() {
           {!loading && !siglipData && legacyResults.length === 0 && (
             <div className="empty-state">
               <i className="fa-solid fa-robot empty-state-icon"></i>
-              <h3>Ready for Verification</h3>
-              <p>Configure your reference campaign directory and targets in the Control Center, then execute verification to receive structured visual reports.</p>
+              <h3>جاهزين للتحقق</h3>
+              <p>حدد صور الحملة والميديا المطلوبة من لوحة التحكم وبعدها شغل التحقق عشان تستلم تقرير واضح.</p>
             </div>
           )}
 
@@ -604,41 +844,45 @@ export default function App() {
               <div className="summary-card">
                 <div className="summary-header">
                   <div className="summary-title">
-                    <h3>Campaign Match Report</h3>
-                    <span>{siglipData.summary?.campaign_name || 'Verification'}</span>
+                    <h3>تقرير مطابقة الحملة</h3>
+                    <span>{siglipData.summary?.campaign_name || 'تحقق'}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     <div className="engine-badge" style={{ borderColor: 'var(--accent-muted)' }}>
-                      {siglipData.summary?.num_references} references loaded
+                      {siglipData.summary?.num_references} مرجع متحمل
                     </div>
                     <button className="btn-secondary" onClick={handleNewCoverage}>
-                      <i className="fa-solid fa-rotate-left"></i> New Coverage
+                      <i className="fa-solid fa-rotate-left"></i> تقرير جديد
                     </button>
                   </div>
                 </div>
 
                 <div className="summary-stats">
                   <div className="stat-item">
-                    <div className="stat-val accent">{siglipData.summary?.num_targets}</div>
-                    <div className="stat-label">Total Targets</div>
+                    <div className="stat-val accent">{summaryCounts.total}</div>
+                    <div className="stat-label">إجمالي العناصر</div>
                   </div>
                   <div className="stat-item">
-                    <div className="stat-val strong">{siglipData.summary?.strong_matches}</div>
-                    <div className="stat-label">Strong Matches</div>
+                    <div className="stat-val strong">{summaryCounts.verified}</div>
+                    <div className="stat-label">مطابقة مؤكدة</div>
                   </div>
                   <div className="stat-item">
-                    <div className="stat-val possible">{siglipData.summary?.possible_matches}</div>
-                    <div className="stat-label">Possible Matches</div>
+                    <div className="stat-val high">{summaryCounts.high}</div>
+                    <div className="stat-label">ثقة عالية</div>
                   </div>
                   <div className="stat-item">
-                    <div className="stat-val none">{siglipData.summary?.rejections}</div>
-                    <div className="stat-label">Rejections</div>
+                    <div className="stat-val review">{summaryCounts.review}</div>
+                    <div className="stat-label">محتاج مراجعة</div>
+                  </div>
+                  <div className="stat-item">
+                    <div className="stat-val none">{summaryCounts.rejected}</div>
+                    <div className="stat-label">مرفوض</div>
                   </div>
                 </div>
 
                 <div className="info-row">
                   <i className="fa-solid fa-circle-info"></i>
-                  <span>Reference bank variance: <strong>{siglipData.summary?.reference_variance}</strong>. Lower variance indicates highly consistent references (strict threshold).</span>
+                  <span>تباين المراجع: <strong>{siglipData.summary?.reference_variance}</strong>. كل ما الرقم يقل كل ما المراجع متقاربة.</span>
                 </div>
               </div>
 
@@ -646,7 +890,7 @@ export default function App() {
               {siglipData.summary?.cohesion_metrics && (
                 <div className="cohesion-panel">
                   <div className="cohesion-header">
-                    <div className="cohesion-title"><i className="fa-solid fa-gem"></i> Reference Set Quality</div>
+                    <div className="cohesion-title"><i className="fa-solid fa-gem"></i> جودة المراجع</div>
                     <span className={`cohesion-quality-badge ${siglipData.summary.cohesion_metrics.cluster_quality?.toLowerCase()}`}>
                       {siglipData.summary.cohesion_metrics.cluster_quality}
                     </span>
@@ -732,7 +976,7 @@ export default function App() {
                   {siglipData.social_analytics.platform_distribution && Object.keys(siglipData.social_analytics.platform_distribution).length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.75rem' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                        Detected Platforms
+                        المنصات المكتشفة
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                         {Object.entries(siglipData.social_analytics.platform_distribution).map(([platform, count]) => {
@@ -745,7 +989,7 @@ export default function App() {
                           
                           return (
                             <span key={platform} className="media-badge highlight" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}>
-                              <i className={platformIcon}></i> {platformLabel}: {count} {count === 1 ? 'post' : 'posts'}
+                              <i className={platformIcon}></i> {platformLabel}: {count} {count === 1 ? 'بوست' : 'بوستات'}
                             </span>
                           );
                         })}
@@ -756,11 +1000,21 @@ export default function App() {
               )}
 
               {/* Individual Target Cards list */}
-              <div className="results-header">Target Verification List</div>
+              <div className="results-header">قائمة التحقق</div>
               <div className="results-list">
                 {siglipData.results?.map((res, index) => {
                   const isExpanded = !!expandedCards[index]
-                  const verdictClass = res.match_type
+                  const decisionLabel = resolveDecisionTier(res)
+                  const verdictClass = getMatchClass(decisionLabel)
+                  const confidencePct = getConfidencePct(res)
+                  const scoreValue = getScoreValue(res)
+                  const possibleThreshold = getPossibleThreshold(res)
+                  const decisionMargin = Number.isFinite(possibleThreshold) ? (scoreValue - possibleThreshold) : null
+                  const competitorMargin = Number.isFinite(res.competitor_margin) ? res.competitor_margin : null
+                  const competitorRisk = (
+                    (Number.isFinite(res.competitor_similarity) && res.competitor_similarity >= 0.72) ||
+                    (Number.isFinite(competitorMargin) && competitorMargin <= 0.08)
+                  )
                   
                   return (
                     <div className={`result-card ${verdictClass}`} key={index}>
@@ -770,8 +1024,13 @@ export default function App() {
                             {renderCardMedia(res.file, res.filename)}
                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flexGrow: 1 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <span className="file-name" title={res.filename}>{res.filename || 'Target Content'}</span>
-                                {renderVerdictBadge(res.match_type)}
+                                <span className="file-name" title={res.filename}>{res.filename || 'محتوى الهدف'}</span>
+                                {renderVerdictBadge(decisionLabel)}
+                                {res.error && (
+                                  <span className="badge rejected" title={res.error}>
+                                    <i className="fa-solid fa-triangle-exclamation"></i> فشل التحميل
+                                  </span>
+                                )}
                                 <button 
                                   className="copy-path-badge-btn" 
                                   onClick={(e) => {
@@ -786,7 +1045,7 @@ export default function App() {
                                       target.classList.remove('copied');
                                     }, 1500);
                                   }}
-                                  title="Copy absolute file path"
+                                  title="نسخ مسار الملف"
                                 >
                                   <i className="fa-solid fa-copy"></i>
                                 </button>
@@ -797,7 +1056,7 @@ export default function App() {
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    title="Open source URL"
+                                    title="فتح رابط المصدر"
                                   >
                                     <i className="fa-solid fa-link"></i>
                                   </a>
@@ -806,26 +1065,31 @@ export default function App() {
                               {res.media_context && (
                                 <div className="media-badges-row">
                                   <span className="media-badge">
-                                    <i className="fa-solid fa-expand"></i> Aspect: {res.media_context.aspect_ratio?.toFixed(2)}
+                                    <i className="fa-solid fa-expand"></i> النسبة: {res.media_context.aspect_ratio?.toFixed(2)}
                                   </span>
                                   {res.media_context.is_social_media && (
                                     <span className="media-badge highlight">
-                                      <i className="fa-solid fa-share-nodes"></i> Social Format
+                                      <i className="fa-solid fa-share-nodes"></i> شكل سوشيال
                                     </span>
                                   )}
                                   {res.media_context.has_overlays && (
                                     <span className="media-badge warning">
-                                      <i className="fa-solid fa-rectangle-ad"></i> Overlay
+                                      <i className="fa-solid fa-rectangle-ad"></i> اوفرلاي
                                     </span>
                                   )}
                                   {res.media_context.compression_level > 0.4 && (
                                     <span className="media-badge">
-                                      <i className="fa-solid fa-compress"></i> Noise: {Math.round(res.media_context.compression_level * 100)}%
+                                      <i className="fa-solid fa-compress"></i> ضغط: {Math.round(res.media_context.compression_level * 100)}%
                                     </span>
                                   )}
                                   {res.media_context.suggested_threshold_offset < 0 && (
                                     <span className="media-badge highlight">
-                                      <i className="fa-solid fa-sliders"></i> Offset: {res.media_context.suggested_threshold_offset?.toFixed(2)}
+                                      <i className="fa-solid fa-sliders"></i> تعويض: {res.media_context.suggested_threshold_offset?.toFixed(2)}
+                                    </span>
+                                  )}
+                                  {res.platform && res.platform !== 'unknown' && (
+                                    <span className="media-badge highlight">
+                                      <i className="fa-solid fa-hashtag"></i> {res.platform.replace('_', ' ').toUpperCase()}
                                     </span>
                                   )}
                                 </div>
@@ -836,13 +1100,13 @@ export default function App() {
 
                         <div className="score-section">
                           <div className="gauge-wrapper">
-                            <span className={`gauge-pct ${res.match_type === 'STRONG_MATCH' ? 'strong' : res.match_type === 'POSSIBLE_MATCH' ? 'possible' : 'none'}`}>
-                              {res.confidence_pct}%
+                            <span className={`gauge-pct ${getMatchClass(decisionLabel)}`}>
+                              {confidencePct}%
                             </span>
                             <div className="gauge-track">
                               <div 
-                                className={`gauge-fill ${res.match_type === 'STRONG_MATCH' ? 'strong' : res.match_type === 'POSSIBLE_MATCH' ? 'possible' : 'none'}`}
-                                style={{ width: `${res.confidence_pct}%` }}
+                                className={`gauge-fill ${getMatchClass(decisionLabel)}`}
+                                style={{ width: `${confidencePct}%` }}
                               ></div>
                             </div>
                           </div>
@@ -859,7 +1123,12 @@ export default function App() {
                           {/* Visual Asset Inspection Showcase */}
                           <div className="expanded-media-showcase">
                             <div className="detail-section-title">
-                              <i className="fa-solid fa-eye"></i> Visual Asset Inspection
+                              <i className="fa-solid fa-eye"></i> مراجعة الميديا
+                            </div>
+                            <div className="media-review-actions">
+                              <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); openMediaReview(res); }}>
+                                <i className="fa-solid fa-magnifying-glass"></i> افتح مراجعة الميديا
+                              </button>
                             </div>
                             <div className="expanded-media-viewer">
                               {(() => {
@@ -891,52 +1160,68 @@ export default function App() {
                             {/* Similarity Metrics */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-chart-line"></i> Similarity Metrics
+                                <i className="fa-solid fa-chart-line"></i> مؤشرات التشابه
                               </div>
                               <div className="matching-highlights">
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Overall Match Verdict</span>
-                                  <span className="highlight-val">{res.verdict}</span>
+                                  <span className="highlight-label">نتيجة المطابقة</span>
+                                  <span className="highlight-val">{formatMatchLabel(decisionLabel)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Primary Blended Score</span>
-                                  <span className="highlight-val mono">{(res.confidence).toFixed(4)}</span>
+                                  <span className="highlight-label">السكور المدمج</span>
+                                  <span className="highlight-val mono">{scoreValue.toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Max Similarity Found</span>
+                                  <span className="highlight-label">أعلى تشابه</span>
                                   <span className="highlight-val mono">{(res.top_similarity).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Average Similarity</span>
+                                  <span className="highlight-label">متوسط التشابه</span>
                                   <span className="highlight-val mono">{(res.average_similarity).toFixed(4)}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Threshold Applied</span>
-                                  <span className="highlight-val mono">{(res.threshold_used).toFixed(4)}</span>
+                                  <span className="highlight-label">العتبة المستخدمة</span>
+                                  <span className="highlight-val mono">{possibleThreshold !== null ? possibleThreshold.toFixed(4) : 'N/A'}</span>
                                 </div>
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Frames Evaluated</span>
+                                  <span className="highlight-label">عدد الفريمات</span>
                                   <span className="highlight-val">{res.num_frames_analyzed}</span>
                                 </div>
                                 {res.best_reference && (
                                   <div className="highlight-box">
-                                    <span className="highlight-label">Best Reference Image</span>
+                                    <span className="highlight-label">أفضل مرجع</span>
                                     <span className="highlight-val" style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={res.best_reference}>
                                       {res.best_reference}
                                     </span>
                                   </div>
                                 )}
                                 <div className="highlight-box">
-                                  <span className="highlight-label">Compute Time</span>
+                                  <span className="highlight-label">وقت المعالجة</span>
                                   <span className="highlight-val">{res.processing_time_ms} ms</span>
                                 </div>
+                                <div className="highlight-box">
+                                  <span className="highlight-label">حالة المراجعة</span>
+                                  <span className="highlight-val">{res.review_status || 'N/A'}</span>
+                                </div>
+                                {res.error && (
+                                  <div className="highlight-box">
+                                    <span className="highlight-label">خطأ التحميل</span>
+                                    <span className="highlight-val" title={res.error}>{res.error}</span>
+                                  </div>
+                                )}
+                                {res.decision_tier && (
+                                  <div className="highlight-box">
+                                    <span className="highlight-label">تصنيف القرار</span>
+                                    <span className="highlight-val">{formatMatchLabel(res.decision_tier)}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
                             {/* Reference Matching Breakdown */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-cubes"></i> Reference Matching Breakdown
+                                <i className="fa-solid fa-cubes"></i> تفاصيل المراجع
                               </div>
                               <div className="ref-matches-list">
                                 {res.top_matches?.map((ref, rIndex) => (
@@ -960,17 +1245,77 @@ export default function App() {
                             </div>
                           </div>
 
+                            {/* Caption OCR & Compliance */}
+                            {(res.ocr_output || res.compliance_report || res.caption_compliance) && (
+                              <div className="detail-row">
+                                <div>
+                                  <div className="detail-section-title">
+                                    <i className="fa-solid fa-file-signature"></i> تحليل الكابشن والالتزام
+                                  </div>
+                                  <div className="matching-highlights">
+                                    <div className="highlight-box">
+                                      <span className="highlight-label">حالة الالتزام</span>
+                                      <span className="highlight-val">
+                                        {complianceStatusLabel(res.compliance_report?.status || res.caption_compliance)}
+                                      </span>
+                                    </div>
+                                    {Number.isFinite(res.compliance_report?.compliance_score) && (
+                                      <div className="highlight-box">
+                                        <span className="highlight-label">درجة الالتزام</span>
+                                        <span className="highlight-val">{res.compliance_report.compliance_score}%</span>
+                                      </div>
+                                    )}
+                                    {res.ocr_output?.platform && (
+                                      <div className="highlight-box">
+                                        <span className="highlight-label">المنصة</span>
+                                        <span className="highlight-val">{res.ocr_output.platform}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {res.ocr_output?.caption && (
+                                    <div className="caption-preview">
+                                      <div className="caption-label">الكابشن المستخرج</div>
+                                      <div className="caption-text">{res.ocr_output.caption}</div>
+                                    </div>
+                                  )}
+
+                                  {(res.ocr_output?.hashtags?.length > 0 || res.ocr_output?.mentions?.length > 0) && (
+                                    <div className="caption-tags">
+                                      {res.ocr_output?.hashtags?.length > 0 && (
+                                        <div className="caption-tag-row">هاشتاجات: {res.ocr_output.hashtags.join(' ')}</div>
+                                      )}
+                                      {res.ocr_output?.mentions?.length > 0 && (
+                                        <div className="caption-tag-row">منشنز: {res.ocr_output.mentions.join(' ')}</div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {((res.compliance_report?.violations || []).length > 0 || (res.compliance_report?.missing_rules || []).length > 0) && (
+                                    <div className="caption-issues">
+                                      {[...(res.compliance_report?.violations || []), ...(res.compliance_report?.missing_rules || [])].map((issue, iIdx) => (
+                                        <div key={iIdx} className="caption-issue">
+                                          <i className="fa-solid fa-triangle-exclamation"></i>
+                                          <span>{formatComplianceIssue(issue)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
                           {/* Row 2: Brand Overlap & Ambiguity Gauges */}
                           <div className="detail-row">
                             {/* Competitor Overlap Gauges */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-shield-halved"></i> Brand Conflict & Proximity
+                                <i className="fa-solid fa-shield-halved"></i> تداخل المنافسين
                               </div>
                               <div className="matching-highlights">
                                 <div className="highlight-box-vertical">
                                   <div className="highlight-vertical-header">
-                                    <span className="highlight-label">Competitor Proximity Index</span>
+                                    <span className="highlight-label">قرب المنافس</span>
                                     <span className="highlight-val mono">{(res.competitor_similarity || 0.0).toFixed(4)}</span>
                                   </div>
                                   <div className="competitor-track">
@@ -981,14 +1326,14 @@ export default function App() {
                                   </div>
                                   {res.explainability?.best_competitor && (
                                     <div className="competitor-meta-info">
-                                      Nearest Competitor Asset: <strong>{res.explainability.best_competitor}</strong>
+                                      أقرب منافس: <strong>{res.explainability.best_competitor}</strong>
                                     </div>
                                   )}
                                 </div>
 
                                 <div className="highlight-box-vertical">
                                   <div className="highlight-vertical-header">
-                                    <span className="highlight-label">Decision Ambiguity Index</span>
+                                    <span className="highlight-label">غموض القرار</span>
                                     <span className="highlight-val mono">{(res.ambiguity_score || 0.0).toFixed(4)}</span>
                                   </div>
                                   <div className="competitor-track">
@@ -998,7 +1343,7 @@ export default function App() {
                                     ></div>
                                   </div>
                                   <div className="competitor-meta-info">
-                                    Status: <strong className={res.ambiguity_score > 0.5 ? 'txt-danger' : 'txt-safe'}>{res.ambiguity_score > 0.5 ? 'AMBIGUOUS MATCH PATTERN' : 'HIGH RETRIEVAL MARGIN'}</strong>
+                                    الحالة: <strong className={competitorRisk ? 'txt-danger' : 'txt-safe'}>{competitorRisk ? 'محتاج مراجعة' : 'هامش آمن'}</strong>
                                   </div>
                                 </div>
                               </div>
@@ -1007,7 +1352,7 @@ export default function App() {
                             {/* Diagnostics Panel & Warnings */}
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-stethoscope"></i> Diagnostic & Explainability Logs
+                                <i className="fa-solid fa-stethoscope"></i> سجل التشخيص والتفسير
                               </div>
                               
                               {res.warnings && res.warnings.length > 0 ? (
@@ -1023,8 +1368,20 @@ export default function App() {
                                 <div className="diagnostic-success-bar">
                                   <i className="fa-solid fa-circle-check success-icon"></i>
                                   <div className="success-text">
-                                    <strong>All Retrieval Diagnostics Nominal:</strong> Verification metrics confirmed clear decision boundaries. No competitor distractor encroachment detected.
+                                    <strong>كل المؤشرات تمام:</strong> مفيش تداخل منافسين واضح.
                                   </div>
+                                </div>
+                              )}
+
+                              {res.explainability?.boost_reasons && res.explainability.boost_reasons.length > 0 && (
+                                <div className="boost-reasons">
+                                  <div className="boost-reasons-title">أسباب رفع الثقة</div>
+                                  {res.explainability.boost_reasons.map((reason, rIdx) => (
+                                    <div key={rIdx} className="boost-reason-item">
+                                      <i className="fa-solid fa-sparkles"></i>
+                                      <span>{getBoostReasonText(reason)}</span>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
@@ -1035,113 +1392,142 @@ export default function App() {
                             {/* Calibration Card 1: Platt scaling */}
                             <div className="calibration-card">
                               <div className="calibration-card-header">
-                                <i className="fa-solid fa-chart-line"></i> Platt scaling calibration
+                                <i className="fa-solid fa-chart-line"></i> معايرة الثقة
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Calibrated Probability</span>
+                                <span className="calibration-stat-label">الثقة بعد المعايرة</span>
                                 <span className={`calibration-stat-val ${res.match_type === 'STRONG_MATCH' ? 'highlight-green' : res.match_type === 'PROBABLE_STRONG_MATCH' ? 'highlight-gold' : ''}`}>
-                                  {res.confidence_pct}%
+                                  {confidencePct}%
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Raw Max Similarity</span>
+                                <span className="calibration-stat-label">أعلى تشابه خام</span>
                                 <span className="calibration-stat-val">{res.top_similarity?.toFixed(4)}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Raw Avg Similarity</span>
+                                <span className="calibration-stat-label">متوسط تشابه خام</span>
                                 <span className="calibration-stat-val">{res.average_similarity?.toFixed(4)}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Active Threshold</span>
-                                <span className="calibration-stat-val">{res.threshold_used?.toFixed(4)}</span>
+                                <span className="calibration-stat-label">العتبة الحالية</span>
+                                <span className="calibration-stat-val">{possibleThreshold !== null ? possibleThreshold.toFixed(4) : 'N/A'}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Decision Margin</span>
-                                <span className="calibration-stat-val">{(res.confidence - res.threshold_used)?.toFixed(4)}</span>
+                                <span className="calibration-stat-label">هامش القرار</span>
+                                <span className="calibration-stat-val">{decisionMargin !== null ? decisionMargin.toFixed(4) : 'N/A'}</span>
                               </div>
                             </div>
 
                             {/* Calibration Card 2: Temporal Stability */}
                             <div className="calibration-card">
                               <div className="calibration-card-header">
-                                <i className="fa-solid fa-clock-rotate-left"></i> Temporal stability info
+                                <i className="fa-solid fa-clock-rotate-left"></i> ثبات الفيديو
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Temporal Continuity Strength</span>
-                                <span className="calibration-stat-val highlight-green">
-                                  {(res.temporal_strength || 0.0)?.toFixed(4)}
-                                </span>
+                                <span className="calibration-stat-label">قوة الاستمرارية</span>
+                                <span className="calibration-stat-val highlight-green">{Number.isFinite(res.temporal_strength) ? res.temporal_strength.toFixed(4) : 'N/A'}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Frames Evaluated</span>
+                                <span className="calibration-stat-label">عدد الفريمات</span>
                                 <span className="calibration-stat-val">{res.num_frames_analyzed}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Stable Segments Count</span>
+                                <span className="calibration-stat-label">عدد المقاطع الثابتة</span>
                                 <span className="calibration-stat-val">{res.stable_segments ? res.stable_segments.length : 0}</span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Best Match Frame ID</span>
+                                <span className="calibration-stat-label">أفضل فريم</span>
                                 <span className="calibration-stat-val" style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={res.best_frame}>
                                   {res.best_frame || 'N/A'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Diagnostics Status</span>
-                                <span className="calibration-stat-val">{res.warnings && res.warnings.length > 0 ? 'WARNINGS FLAGGED' : 'NOMINAL'}</span>
+                                <span className="calibration-stat-label">حالة التشخيص</span>
+                                <span className="calibration-stat-val">{res.warnings && res.warnings.length > 0 ? 'تحذيرات' : 'تمام'}</span>
                               </div>
                             </div>
 
                             {/* Calibration Card 3: Reference Cluster & Boost Telemetry */}
                             <div className="calibration-card">
                               <div className="calibration-card-header">
-                                <i className="fa-solid fa-cubes"></i> Semantic Cluster & Adjustments
+                                <i className="fa-solid fa-cubes"></i> مجموعات المراجع والضبط
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Dominant Cluster Group</span>
+                                <span className="calibration-stat-label">المجموعة الأساسية</span>
                                 <span className="calibration-stat-val" style={{ color: 'var(--accent-light)' }}>
                                   {(() => {
                                     const cl = res.dominant_cluster;
-                                    if (cl === 'logo_refs') return 'Logo References';
-                                    if (cl === 'drink_refs') return 'Drink References';
-                                    if (cl === 'product_refs') return 'Product References';
-                                    if (cl === 'store_refs') return 'Store References';
-                                    return cl || 'Global Centroid';
+                                    if (cl === 'logo_refs') return 'مراجع لوجو';
+                                    if (cl === 'drink_refs') return 'مراجع مشروب';
+                                    if (cl === 'product_refs') return 'مراجع منتج';
+                                    if (cl === 'store_refs') return 'مراجع المتجر';
+                                    return cl || 'مركز عام';
                                   })()}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Cluster Centroid Similarity</span>
+                                <span className="calibration-stat-label">تشابه المركز</span>
                                 <span className="calibration-stat-val">
                                   {res.cluster_similarity !== undefined && res.cluster_similarity !== null ? res.cluster_similarity.toFixed(4) : '0.0000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Social UI Adjustment</span>
+                                <span className="calibration-stat-label">تعديل واجهة السوشيال</span>
                                 <span className={`calibration-stat-val ${res.social_adjustment > 0 ? 'highlight-green' : ''}`}>
                                   {res.social_adjustment > 0 ? `+${res.social_adjustment.toFixed(3)}` : '0.000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Branding Product Boost</span>
+                                <span className="calibration-stat-label">تعزيز المنتج</span>
                                 <span className={`calibration-stat-val ${res.product_boost > 0 ? 'highlight-green' : ''}`}>
                                   {res.product_boost > 0 ? `+${res.product_boost.toFixed(3)}` : '0.000'}
                                 </span>
                               </div>
                               <div className="calibration-stat-row">
-                                <span className="calibration-stat-label">Calibration Adjustments</span>
+                                <span className="calibration-stat-label">تعزيز بصري</span>
+                                <span className={`calibration-stat-val ${res.visual_boost > 0 ? 'highlight-green' : ''}`}>
+                                  {res.visual_boost > 0 ? `+${res.visual_boost.toFixed(3)}` : '0.000'}
+                                </span>
+                              </div>
+                              <div className="calibration-stat-row">
+                                <span className="calibration-stat-label">حالة التعزيز</span>
                                 <span className="calibration-stat-val">
-                                  {res.social_adjustment > 0 || res.product_boost > 0 ? 'ACTIVE BOOSTS' : 'NOMINAL'}
+                                  {res.social_adjustment > 0 || res.product_boost > 0 || res.visual_boost > 0 ? 'تعزيز شغال' : 'طبيعي'}
                                 </span>
                               </div>
                             </div>
+
+                            {/* Calibration Card 4: Visual signals */}
+                            {res.visual_signal && (
+                              <div className="calibration-card">
+                                <div className="calibration-card-header">
+                                  <i className="fa-solid fa-eye"></i> تحليل الإشارات البصرية
+                                </div>
+                                <div className="calibration-stat-row">
+                                  <span className="calibration-stat-label">قوة اللوجو</span>
+                                  <span className="calibration-stat-val">{Math.round((res.visual_signal.logo_strength || 0) * 100)}%</span>
+                                </div>
+                                <div className="calibration-stat-row">
+                                  <span className="calibration-stat-label">تركيز المنتج</span>
+                                  <span className="calibration-stat-val">{Math.round((res.visual_signal.product_focus || 0) * 100)}%</span>
+                                </div>
+                                <div className="calibration-stat-row">
+                                  <span className="calibration-stat-label">كثافة العلامة</span>
+                                  <span className="calibration-stat-val">{Math.round((res.visual_signal.branding_density || 0) * 100)}%</span>
+                                </div>
+                                <div className="calibration-stat-row">
+                                  <span className="calibration-stat-label">ثقة واجهة السوشيال</span>
+                                  <span className="calibration-stat-val">{Math.round((res.visual_signal.social_media_confidence || 0) * 100)}%</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Model Decision Reasoning Chain */}
                           {res.explainability?.reasoning_steps && (
                             <div>
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-brain"></i> Model Decision Reasoning Chain
+                                <i className="fa-solid fa-brain"></i> تسلسل قرار النموذج
                               </div>
                               <div className="reasoning-list">
                                 {res.explainability.reasoning_steps.map((step, sIdx) => {
@@ -1191,7 +1577,7 @@ export default function App() {
                           {res.num_frames_analyzed > 1 && res.frame_scores && res.frame_scores.length > 1 && (
                             <div className="timeline-section">
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-chart-area"></i> Temporal Verification & Retrieval Timeline
+                                <i className="fa-solid fa-chart-area"></i> خط زمني للتطابق
                               </div>
                               
                               <div className="timeline-svg-wrapper">
@@ -1222,12 +1608,12 @@ export default function App() {
                                   })}
                                   
                                   {/* Match Threshold line */}
-                                  {(() => {
-                                    const yThresh = 120 - (res.threshold_used * 100);
+                                  {Number.isFinite(possibleThreshold) && (() => {
+                                    const yThresh = 120 - (possibleThreshold * 100);
                                     return (
                                       <g>
                                         <line x1="50" y1={yThresh} x2="750" y2={yThresh} stroke="var(--match-possible)" strokeWidth="1.5" strokeDasharray="3,3" />
-                                        <text x="755" y={yThresh + 3} fill="var(--match-possible)" fontSize="9" fontWeight="bold">THR: {res.threshold_used.toFixed(2)}</text>
+                                        <text x="755" y={yThresh + 3} fill="var(--match-possible)" fontSize="9" fontWeight="bold">THR: {possibleThreshold.toFixed(2)}</text>
                                       </g>
                                     )
                                   })()}
@@ -1274,7 +1660,7 @@ export default function App() {
                                   <path 
                                     d={res.frame_scores.map((frame, i) => {
                                       const x = 50 + (i * 700) / (res.frame_scores.length - 1);
-                                      const score = frame.smoothed_similarity !== undefined ? frame.smoothed_similarity : frame.max_similarity;
+                                      const score = frame.score !== undefined ? frame.score : (frame.smoothed_similarity !== undefined ? frame.smoothed_similarity : frame.max_similarity);
                                       const y = 120 - (score * 100);
                                       return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
                                     }).join(" ")} 
@@ -1289,9 +1675,9 @@ export default function App() {
                                   {/* Interactive circles */}
                                   {res.frame_scores.map((frame, i) => {
                                     const x = 50 + (i * 700) / (res.frame_scores.length - 1);
-                                    const smVal = frame.smoothed_similarity !== undefined ? frame.smoothed_similarity : frame.max_similarity;
+                                    const smVal = frame.score !== undefined ? frame.score : (frame.smoothed_similarity !== undefined ? frame.smoothed_similarity : frame.max_similarity);
                                     const ySmooth = 120 - (smVal * 100);
-                                    const isMatched = smVal >= res.threshold_used;
+                                    const isMatched = Number.isFinite(possibleThreshold) ? smVal >= possibleThreshold : false;
                                     
                                     return (
                                       <g key={i} className="timeline-node-group">
@@ -1312,10 +1698,10 @@ export default function App() {
                               
                               {/* Dynamic Legend */}
                               <div className="timeline-legend">
-                                <div className="legend-item"><span className="legend-dot raw"></span> Raw Frame Score</div>
-                                <div className="legend-item"><span className="legend-dot smoothed"></span> Smoothed Match Score</div>
-                                <div className="legend-item"><span className="legend-dot competitor"></span> Competitor Proximity</div>
-                                <div className="legend-item"><span className="legend-dot thresh"></span> Match Threshold</div>
+                                <div className="legend-item"><span className="legend-dot raw"></span> سكور خام</div>
+                                <div className="legend-item"><span className="legend-dot smoothed"></span> سكور سلس</div>
+                                <div className="legend-item"><span className="legend-dot competitor"></span> قرب المنافس</div>
+                                <div className="legend-item"><span className="legend-dot thresh"></span> عتبة المطابقة</div>
                               </div>
 
                               {/* Active Matching Timeline Segment Pills */}
@@ -1323,7 +1709,7 @@ export default function App() {
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem', justifyContent: 'center' }}>
                                   {res.stable_segments.map((seg, sIdx) => (
                                     <span key={sIdx} className="media-badge highlight" style={{ fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}>
-                                      <i className="fa-solid fa-circle-play"></i> Segment {sIdx + 1}: Frames {seg.start_frame}-{seg.end_frame} ({seg.duration_frames}f) | Avg: {(seg.average_score * 100).toFixed(1)}%
+                                      <i className="fa-solid fa-circle-play"></i> مقطع {sIdx + 1}: فريمات {seg.start_frame}-{seg.end_frame} ({seg.duration_frames}) | متوسط: {(seg.average_score * 100).toFixed(1)}%
                                     </span>
                                   ))}
                                 </div>
@@ -1335,14 +1721,14 @@ export default function App() {
                           {res.num_frames_analyzed > 1 && res.frame_scores && res.frame_scores.length > 0 && (
                             <div className="keyframes-section">
                               <div className="detail-section-title">
-                                <i className="fa-solid fa-photo-film"></i> Extracted Frame Analysis
+                                <i className="fa-solid fa-photo-film"></i> تحليل الفريمات
                               </div>
                               <div className="keyframes-grid">
                                 {res.frame_scores.map((frame, fIndex) => (
                                   <div className="keyframe-card" key={fIndex}>
                                     <div className="keyframe-id" title={frame.frame_id}>{frame.frame_id}</div>
                                     <div className="keyframe-score">{(frame.max_similarity * 100).toFixed(1)}%</div>
-                                    <div className="keyframe-ref" title={frame.best_reference}>ref: {frame.best_reference}</div>
+                                    <div className="keyframe-ref" title={frame.best_reference}>مرجع: {frame.best_reference}</div>
                                   </div>
                                 ))}
                               </div>
@@ -1361,9 +1747,9 @@ export default function App() {
           {!loading && legacyResults.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="results-header" style={{ marginTop: 0 }}>Legacy Analysis Results</div>
+                <div className="results-header" style={{ marginTop: 0 }}>نتائج التحليل القديم</div>
                 <button className="btn-secondary" onClick={handleNewCoverage}>
-                  <i className="fa-solid fa-rotate-left"></i> New Coverage
+                  <i className="fa-solid fa-rotate-left"></i> تقرير جديد
                 </button>
               </div>
               <div className="results-list">
@@ -1376,7 +1762,7 @@ export default function App() {
                           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flexGrow: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                               <span className="file-name" style={{ maxWidth: '350px' }}>{r.file.split(/[\\/]/).pop()}</span>
-                              <span className="badge legacy">{r.influencer || 'Post'} ({r.platform || 'Platform'})</span>
+                              <span className="badge legacy">{r.influencer || 'بوست'} ({r.platform || 'منصة'})</span>
                               <button 
                                 className="copy-path-badge-btn" 
                                 onClick={(e) => {
@@ -1391,7 +1777,7 @@ export default function App() {
                                     target.classList.remove('copied');
                                   }, 1500);
                                 }}
-                                title="Copy absolute file path"
+                                title="نسخ مسار الملف"
                               >
                                 <i className="fa-solid fa-copy"></i>
                               </button>
@@ -1402,7 +1788,7 @@ export default function App() {
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  title="Open source URL"
+                                  title="فتح رابط المصدر"
                                 >
                                   <i className="fa-solid fa-link"></i>
                                 </a>
@@ -1425,6 +1811,20 @@ export default function App() {
 
         </section>
       </main>
+
+      <MediaReviewModal
+        open={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        mediaItems={reviewPayload?.mediaItems || []}
+        sourceFile={reviewPayload?.sourceFile || ''}
+        sourceFilename={reviewPayload?.sourceFilename || ''}
+        bestReferencePath={reviewPayload?.bestReferencePath || ''}
+        bestReferenceName={reviewPayload?.bestReferenceName || ''}
+        decisionTier={reviewPayload?.decisionTier || ''}
+        ocrDebug={reviewPayload?.ocrDebug || null}
+        ocrOutput={reviewPayload?.ocrOutput || null}
+        getMediaUrl={getMediaUrl}
+      />
     </div>
   )
 }

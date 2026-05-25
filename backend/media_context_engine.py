@@ -101,27 +101,27 @@ class MediaContextEngine:
         reasons = []
 
         if is_vertical:
-            offset -= 0.04
+            offset -= 0.02
             reasons.append("Vertical layout detected")
         
         if is_mobile_screenshot:
-            offset -= 0.02
+            offset -= 0.01
             reasons.append("Mobile screenshot indicators detected")
 
         if has_subtitles:
-            offset -= 0.01
+            offset -= 0.005
             reasons.append("Subtitle text detected")
             
         if has_overlays and not has_subtitles:
-            offset -= 0.01
+            offset -= 0.005
             reasons.append("Social UI overlay elements detected")
             
         if compression_level > 0.6:
-            offset -= 0.02
+            offset -= 0.005
             reasons.append("High compression artifacts present")
 
         # Cap the maximum offset boost (reduction in threshold constraint)
-        suggested_threshold_offset = max(-0.08, min(0.0, offset))
+        suggested_threshold_offset = max(-0.04, min(0.0, offset))
         reason_str = ", ".join(reasons) if reasons else "Standard horizontal layout"
 
         is_social_media = is_vertical or has_overlays or is_mobile_screenshot

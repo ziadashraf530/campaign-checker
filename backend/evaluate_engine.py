@@ -136,6 +136,7 @@ def run_evaluation():
         neg_bank.build(neg_dir, force_rebuild=True)
 
         matcher = CampaignMatcher()
+        pos_bank.hard_negative_bank = neg_bank
         
         # We need to manually inject competitor evaluations. 
         # We will modify `siglip_engine.py` shortly to support this natively,
@@ -146,87 +147,32 @@ def run_evaluation():
         for filename in os.listdir(test_pos):
             path = os.path.join(test_pos, filename)
             
-            # Since matcher hasn't been upgraded to support negatives yet in verify, 
-            # let's run custom evaluation that replicates upgraded main.py / matcher logic:
-            engine = SigLIPEngine()
-            embedding = engine.embed_image(engine.preprocess_image(path))
-            
-            # Match similarities
-            pos_sim_result = matcher.similarity.compute_similarities(embedding, pos_bank)
-            
-            # Evaluate competitor ambiguity
-            from hard_negative_engine import CompetitorScorer
-            scorer = CompetitorScorer()
-            comp_eval = scorer.evaluate_ambiguity(embedding, pos_bank, neg_bank)
-            
-            # Blended primary score
-            max_sim = pos_sim_result["max_similarity"]
-            top_k_avg = pos_sim_result["top_k_avg"]
-            centroid_sim = pos_sim_result["centroid_similarity"]
-            
-            # Incorporate penalty
-            primary_score = max_sim * 0.40 + top_k_avg * 0.35 + centroid_sim * 0.25
-            primary_score = max(0.0, primary_score - comp_eval["penalty"])
-
-            strong_thresh, possible_thresh = matcher._calibrate_thresholds(pos_bank)
-            
-            # Final verdict
-            is_match = primary_score >= possible_thresh
-            match_type = "NO_MATCH"
-            if primary_score >= strong_thresh:
-                match_type = "STRONG_MATCH"
-            elif primary_score >= possible_thresh:
-                match_type = "POSSIBLE_MATCH"
-
+            res = matcher.match_image(path, pos_bank)
             pos_results.append({
                 "filename": filename,
-                "score": primary_score,
-                "match": is_match,
-                "match_type": match_type,
-                "comp_sim": comp_eval["competitor_similarity"],
-                "ambiguity": comp_eval["ambiguity_score"]
+                "score": res.score,
+                "match": res.campaign_match,
+                "match_type": res.match_type,
+                "comp_sim": res.competitor_similarity,
+                "margin": res.competitor_margin,
             })
-            print(f"  [POS] {filename:<18} -> Score: {primary_score:.3f} | Match: {is_match} ({match_type}) | CompSim: {comp_eval['competitor_similarity']:.3f} | Ambiguity: {comp_eval['ambiguity_score']:.3f}")
+            print(f"  [POS] {filename:<18} -> Score: {res.score:.3f} | Match: {res.campaign_match} ({res.match_type}) | CompSim: {res.competitor_similarity:.3f} | Margin: {res.competitor_margin:.3f}")
 
         print("\nEvaluating NEGATIVE/COMPETITOR test cases (Expected Match: False)...")
         neg_results = []
         for filename in os.listdir(test_neg):
             path = os.path.join(test_neg, filename)
             
-            engine = SigLIPEngine()
-            embedding = engine.embed_image(engine.preprocess_image(path))
-            
-            pos_sim_result = matcher.similarity.compute_similarities(embedding, pos_bank)
-            
-            from hard_negative_engine import CompetitorScorer
-            scorer = CompetitorScorer()
-            comp_eval = scorer.evaluate_ambiguity(embedding, pos_bank, neg_bank)
-            
-            max_sim = pos_sim_result["max_similarity"]
-            top_k_avg = pos_sim_result["top_k_avg"]
-            centroid_sim = pos_sim_result["centroid_similarity"]
-            
-            primary_score = max_sim * 0.40 + top_k_avg * 0.35 + centroid_sim * 0.25
-            primary_score = max(0.0, primary_score - comp_eval["penalty"])
-
-            strong_thresh, possible_thresh = matcher._calibrate_thresholds(pos_bank)
-            
-            is_match = primary_score >= possible_thresh
-            match_type = "NO_MATCH"
-            if primary_score >= strong_thresh:
-                match_type = "STRONG_MATCH"
-            elif primary_score >= possible_thresh:
-                match_type = "POSSIBLE_MATCH"
-
+            res = matcher.match_image(path, pos_bank)
             neg_results.append({
                 "filename": filename,
-                "score": primary_score,
-                "match": is_match,
-                "match_type": match_type,
-                "comp_sim": comp_eval["competitor_similarity"],
-                "ambiguity": comp_eval["ambiguity_score"]
+                "score": res.score,
+                "match": res.campaign_match,
+                "match_type": res.match_type,
+                "comp_sim": res.competitor_similarity,
+                "margin": res.competitor_margin,
             })
-            print(f"  [NEG] {filename:<18} -> Score: {primary_score:.3f} | Match: {is_match} ({match_type}) | CompSim: {comp_eval['competitor_similarity']:.3f} | Ambiguity: {comp_eval['ambiguity_score']:.3f}")
+            print(f"  [NEG] {filename:<18} -> Score: {res.score:.3f} | Match: {res.campaign_match} ({res.match_type}) | CompSim: {res.competitor_similarity:.3f} | Margin: {res.competitor_margin:.3f}")
 
         # Metrics calculation
         tp = sum(1 for r in pos_results if r["match"])

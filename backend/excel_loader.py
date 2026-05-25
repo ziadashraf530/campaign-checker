@@ -33,11 +33,22 @@ _DEFAULT_LINK_KEYS = {
     "image_url",
 }
 
+_DEFAULT_CAPTION_KEYS = {
+    "caption",
+    "caption_text",
+    "post_text",
+    "description",
+    "text",
+    "copy",
+    "content",
+}
+
 
 def load_excel_posts(
     excel_path: str,
     username_column: str | None = None,
     link_column: str | None = None,
+    caption_column: str | None = None,
 ) -> list[dict[str, Any]]:
     if not os.path.exists(excel_path):
         raise FileNotFoundError(f"Excel file not found: {excel_path}")
@@ -50,9 +61,11 @@ def load_excel_posts(
 
     requested_user = _normalize_column(username_column) if username_column else None
     requested_link = _normalize_column(link_column) if link_column else None
+    requested_caption = _normalize_column(caption_column) if caption_column else None
 
     user_col = _resolve_column(column_map, requested_user, _DEFAULT_USER_KEYS)
     link_col = _resolve_column(column_map, requested_link, _DEFAULT_LINK_KEYS)
+    caption_col = _resolve_column(column_map, requested_caption, _DEFAULT_CAPTION_KEYS)
 
     if not user_col or not link_col:
         available = ", ".join(str(c) for c in df.columns)
@@ -79,6 +92,7 @@ def load_excel_posts(
             "username": username,
             "link": link,
             "row_index": int(idx),
+            "caption": "" if caption_col is None or pd.isna(row.get(caption_col)) else str(row.get(caption_col)).strip(),
         })
 
     return posts

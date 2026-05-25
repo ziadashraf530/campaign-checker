@@ -186,11 +186,10 @@ class TemporalConsistencyEngine:
     def process_sequence(self, raw_scores: list[float]) -> dict:
         """
         Full temporal pipeline:
-        1. Spike suppression
-        2. Rolling smoothing
-        3. Continuity evaluation
-        4. Stable segment extraction
-        5. Temporal strength calculation
+        1. Rolling smoothing
+        2. Continuity evaluation
+        3. Stable segment extraction
+        4. Temporal strength calculation
         """
         if not raw_scores:
             return {
@@ -205,19 +204,16 @@ class TemporalConsistencyEngine:
 
         raw = np.array(raw_scores, dtype=float)
         
-        # 1. Suppress anomalies
-        anom_suppressed = self.suppress_spikes(raw)
-        
-        # 2. Smooth curves
-        smoothed = self.smooth_scores(anom_suppressed)
+        # 1. Smooth curves
+        smoothed = self.smooth_scores(raw)
 
-        # 3. Calculate sequence continuity stats
+        # 2. Calculate sequence continuity stats
         continuity = self.calculate_continuity(smoothed)
         
-        # 4. Extract stable segments
+        # 3. Extract stable segments
         stable_segs = self.find_stable_segments(smoothed)
 
-        # 5. Temporal Strength
+        # 4. Temporal Strength
         # Combines the mean of the top 3 smoothed frame scores with continuity weight
         sorted_smoothed = np.sort(smoothed)[::-1]
         top_k_frames = max(1, min(3, len(sorted_smoothed)))
@@ -225,7 +221,7 @@ class TemporalConsistencyEngine:
 
         # Final temporal strength merges peak smoothed scores with continuity
         continuity_factor = continuity["frame_continuity_score"]
-        temporal_strength = 0.7 * top_smoothed_mean + 0.3 * continuity_factor
+        temporal_strength = 0.8 * top_smoothed_mean + 0.2 * continuity_factor
         temporal_strength = min(1.0, max(0.0, temporal_strength))
 
         return {
